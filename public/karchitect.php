@@ -42,7 +42,8 @@ function kar_route($path, $method) {
     if ($path === '/billing/status' && $method === 'GET') {
         return true;
     }
-    if (in_array($path, array('/billing/paypal', '/billing/urlai'), true) && $method === 'POST') {
+    if (in_array($path, array('/billing/paypal', '/billing/urlai',
+                              '/billing/export/paypal', '/billing/export/urlai'), true) && $method === 'POST') {
         return true;
     }
     if ($path === '/api/projects' && in_array($method, array('GET', 'POST'), true)) {
@@ -132,9 +133,15 @@ function kar_proxy($method, $path, $user, $consume_credit_user = null) {
     if (str_ends_with($path, '/document.html')) {
         $body = str_replace('/static/vendor/mermaid.min.js', 'assets/karchitect-mermaid.min.js', $body);
     }
-    // 有料枠のプロジェクト作成が成功したときだけクレジットを消費(失敗時は減らさない)
+    // 有料操作が成功したときだけ消費(失敗時は減らさない)。
+    // $consume_credit_user: 文字列=プロジェクト作成のクレジット消費(後方互換)、
+    // array('user'=>..,'export'=>'free'|'credit')=設計書出力のコミット。
     if ($consume_credit_user !== null && $status >= 200 && $status < 300) {
-        kar_bill_consume($consume_credit_user);
+        if (is_array($consume_credit_user)) {
+            kar_bill_export_commit($consume_credit_user['user'], $consume_credit_user['export']);
+        } else {
+            kar_bill_consume($consume_credit_user);
+        }
     }
     http_response_code($status ?: 502);
     header('Content-Type: ' . $content_type);
@@ -169,6 +176,7 @@ if (isset($_GET['api'])) {
     if ($path === '/billing/status') {
         list($st, $projects) = kar_backend_get('/api/projects', $session_user);
         $count = ($st === 200 && is_array($projects)) ? count($projects) : null;
+        $ex = kar_bill_export_state($session_user);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, max-age=0');
         echo json_encode(array(
@@ -177,26 +185,47 @@ if (isset($_GET['api'])) {
             'credits' => kar_bill_credits($session_user),
             'price_jpy' => KAR_PRICE_JPY,
             'price_urlai' => KAR_PRICE_URLAI,
+            'export_used' => $ex['export_used'],
+            'export_credits' => $ex['export_credits'],
+            'export_price_jpy' => KAR_EXPORT_PRICE_JPY,
+            'export_price_urlai' => KAR_EXPORT_PRICE_URLAI,
             'urlai_receiver' => KAR_URLAI_RECEIVER,
             'paypal_client_id' => KAR_PAYPAL_CLIENT_ID,
         ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    if ($path === '/billing/paypal' || $path === '/billing/urlai') {
+    if (in_array($path, array('/billing/paypal', '/billing/urlai',
+                              '/billing/export/paypal', '/billing/export/urlai'), true)) {
         $in = json_decode((string)file_get_contents('php://input'), true);
         if (!is_array($in)) {
             kar_error(400, 'JSONを確認してください');
         }
-        if ($path === '/billing/paypal') {
-            list($ok, $msg) = kar_bill_grant_paypal($session_user, isset($in['order_id']) ? $in['order_id'] : '');
+        $is_export = strpos($path, '/export/') !== false;
+        $field = $is_export ? 'export_credits' : 'credits';
+        if (substr($path, -7) === '/paypal') {
+            list($ok, $msg) = kar_bill_grant_paypal($session_user, isset($in['order_id']) ? $in['order_id'] : '',
+                $is_export ? KAR_EXPORT_PRICE_JPY : KAR_PRICE_JPY, $field);
         } else {
-            list($ok, $msg) = kar_bill_grant_urlai($session_user, isset($in['wallet']) ? $in['wallet'] : '');
+            list($ok, $msg) = kar_bill_grant_urlai($session_user, isset($in['wallet']) ? $in['wallet'] : '',
+                $is_export ? KAR_EXPORT_PRICE_URLAI : KAR_PRICE_URLAI, $field);
         }
+        $ex = kar_bill_export_state($session_user);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, max-age=0');
         echo json_encode(array('ok' => $ok, 'message' => $msg,
-            'credits' => kar_bill_credits($session_user)), JSON_UNESCAPED_UNICODE);
+            'credits' => kar_bill_credits($session_user),
+            'export_credits' => $ex['export_credits']), JSON_UNESCAPED_UNICODE);
         exit;
+    }
+    // 設計書出力(ダウンロード)のゲート: 1回目無料、2回目からエクスポートクレジット必須。
+    // 画面内プレビュー(document.html)は無料のまま(アプリ表示に必須のため対象外)。
+    if (preg_match('#^/api/projects/[a-f0-9]{12}/(document\.(md|pdf)|requirements\.json|mermaid/(architecture|class|sequence))$#', $path)
+            && $method === 'GET') {
+        $gate = kar_bill_export_gate($session_user);
+        if ($gate === 'need_payment') {
+            kar_error(402, 'EXPORT_PAYMENT_REQUIRED');
+        }
+        kar_proxy($method, $path, $session_user, array('user' => $session_user, 'export' => $gate));
     }
     if ($path === '/api/projects' && $method === 'POST') {
         list($st, $projects) = kar_backend_get('/api/projects', $session_user);
@@ -248,7 +277,8 @@ if (!$logged_in):
   "image": "https://kurage.exbridge.jp/images/karchitect-ogp.png",
   "offers": [
     {"@type": "Offer", "price": "0", "priceCurrency": "JPY", "description": "1個目の設計プロジェクトは無料"},
-    {"@type": "Offer", "price": "500", "priceCurrency": "JPY", "description": "2個目以降のプロジェクト(1個・買い切り)"}
+    {"@type": "Offer", "price": "500", "priceCurrency": "JPY", "description": "2個目以降のプロジェクト(1個・買い切り)"},
+    {"@type": "Offer", "price": "100", "priceCurrency": "JPY", "description": "設計書の出力(2回目以降・都度)"}
   ],
   "publisher": {"@type": "Organization", "name": "Kurageプロジェクト", "url": "https://kurage.exbridge.jp/"}
 }
@@ -352,7 +382,8 @@ footer a{color:var(--indigo)}
       <div class="price disp">無料</div>
       <div class="per">1個目のプロジェクト</div>
       <ul>
-        <li>✅ 全機能そのまま使えます（対話・構成図・PDF出力）</li>
+        <li>✅ 全機能そのまま使えます（対話・構成図・出力）</li>
+        <li>✅ 設計書の出力（MD/PDF/JSON/Mermaid）も1回無料</li>
         <li>✅ クレジットカード登録も不要</li>
         <li>✅ Xログインだけで今すぐ開始</li>
       </ul>
@@ -364,6 +395,7 @@ footer a{color:var(--indigo)}
       <ul>
         <li>💳 PayPal決済 — 完了と同時に自動でプロジェクト枠を追加</li>
         <li>🪙 URLAIトークン(Base) — 送金をオンチェーンで自動確認</li>
+        <li>📄 設計書の出力は2回目から都度 <b>100円</b> or <b>10,000 URLAI</b></li>
         <li>♻️ 使い切り型。月額・サブスクではありません</li>
       </ul>
       <div class="paybadges"><span class="paybadge">PayPal</span><span class="paybadge">🪙 URLAI</span></div>

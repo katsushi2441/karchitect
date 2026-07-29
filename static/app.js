@@ -171,10 +171,15 @@ function renderQuestions(questions) {
 }
 
 function setExportLinks(id) {
-  $("#downloadMarkdown").href = apiUrl(`/api/projects/${id}/document.md`);
-  $("#downloadJson").href = apiUrl(`/api/projects/${id}/requirements.json`);
-  $("#downloadPdf").href = apiUrl(`/api/projects/${id}/document.pdf`);
-  $("#downloadMermaid").href = apiUrl(`/api/projects/${id}/mermaid/architecture`);
+  // 出力は課金ゲート(1回目無料・2回目から都度100円 or 10,000 URLAI)経由でダウンロード
+  $("#downloadMarkdown").dataset.path = `/api/projects/${id}/document.md`;
+  $("#downloadMarkdown").dataset.fname = `${state.current.name || "design"}.md`;
+  $("#downloadJson").dataset.path = `/api/projects/${id}/requirements.json`;
+  $("#downloadJson").dataset.fname = "requirements.json";
+  $("#downloadPdf").dataset.path = `/api/projects/${id}/document.pdf`;
+  $("#downloadPdf").dataset.fname = `${state.current.name || "design"}.pdf`;
+  $("#downloadMermaid").dataset.path = `/api/projects/${id}/mermaid/architecture`;
+  $("#downloadMermaid").dataset.fname = "architecture.mmd";
 }
 
 function setBusy(busy) {
@@ -300,6 +305,101 @@ function mountPaypal() {
   document.head.appendChild(s);
 }
 
+// ---- 設計書出力の課金(1回目無料・2回目から都度100円 or 10,000 URLAI) ----
+let pendingExport = null;
+
+async function gatedExport(path, fname) {
+  try {
+    const response = await fetch(apiUrl(path), {
+      headers: window.KARCHITECT_CSRF ? { "X-CSRF-Token": window.KARCHITECT_CSRF } : {},
+    });
+    if (response.status === 402) { pendingExport = { path, fname }; openExportBilling(); return; }
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`;
+      try { message = (await response.json()).detail || message; } catch (_) {}
+      alert(`出力に失敗しました: ${message}`);
+      return;
+    }
+    const blob = await response.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  } catch (error) {
+    alert(`出力に失敗しました: ${error.message}`);
+  }
+}
+
+async function openExportBilling() {
+  const dlg = $("#exportBillingDialog");
+  dlg.showModal();
+  $("#exportBillingMsg").textContent = "";
+  try {
+    billingInfo = await api("/billing/status");
+  } catch (error) {
+    $("#exportBillingMsg").textContent = "課金情報を取得できませんでした: " + error.message;
+    return;
+  }
+  $("#exportCredits").textContent = String(billingInfo.export_credits);
+  $("#exportReceiver").textContent = billingInfo.urlai_receiver;
+  mountExportPaypal();
+}
+
+function exportBillingSay(message, ok) {
+  const el = $("#exportBillingMsg");
+  el.textContent = message;
+  el.style.color = ok ? "var(--up)" : "var(--down)";
+}
+
+async function exportGranted(data) {
+  $("#exportCredits").textContent = String(data.export_credits);
+  exportBillingSay(data.message + " ダウンロードを再開します…", true);
+  setTimeout(() => {
+    $("#exportBillingDialog").close();
+    if (pendingExport) { const p = pendingExport; pendingExport = null; gatedExport(p.path, p.fname); }
+  }, 1000);
+}
+
+function mountExportPaypal() {
+  const box = $("#exportPaypalButtons");
+  if (!billingInfo || box.dataset.mounted) return;
+  const boot = () => {
+    if (!window.paypal || !window.paypal.Buttons) return;
+    box.dataset.mounted = "1";
+    window.paypal.Buttons({
+      style: { layout: "horizontal", height: 38, tagline: false },
+      createOrder: (d, actions) => actions.order.create({
+        purchase_units: [{ description: "Kurage Architect 設計書出力",
+          amount: { currency_code: "JPY", value: String(billingInfo.export_price_jpy) } }],
+      }),
+      onApprove: (d, actions) => actions.order.capture().then(async (order) => {
+        try {
+          const res = await api("/billing/export/paypal", { method: "POST", body: JSON.stringify({ order_id: order.id }) });
+          if (res.ok) { exportGranted(res); } else { exportBillingSay(res.message || "確認に失敗しました", false); }
+        } catch (error) { exportBillingSay("確認に失敗しました: " + error.message, false); }
+      }),
+      onError: () => exportBillingSay("PayPal決済でエラーが発生しました。時間をおいて再試行してください", false),
+    }).render("#exportPaypalButtons");
+  };
+  if (window.paypal) { boot(); return; }
+  const s = document.createElement("script");
+  s.src = "https://www.paypal.com/sdk/js?client-id=" + encodeURIComponent(billingInfo.paypal_client_id) + "&currency=JPY";
+  s.onload = boot;
+  document.head.appendChild(s);
+}
+
+async function verifyExportUrlai() {
+  const wallet = $("#exportWallet").value.trim();
+  if (!wallet) { exportBillingSay("送金元ウォレットアドレスを入力してください", false); return; }
+  exportBillingSay("オンチェーンで確認中…（数秒かかります）", true);
+  try {
+    const res = await api("/billing/export/urlai", { method: "POST", body: JSON.stringify({ wallet }) });
+    if (res.ok) { exportGranted(res); } else { exportBillingSay(res.message || "確認できませんでした", false); }
+  } catch (error) { exportBillingSay("確認に失敗しました: " + error.message, false); }
+}
+
 async function verifyUrlai() {
   const wallet = $("#billingWallet").value.trim();
   if (!wallet) { billingSay("送金元ウォレットアドレスを入力してください", false); return; }
@@ -316,6 +416,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#projectForm").addEventListener("submit", createProject);
   $("#billingClose").addEventListener("click", () => $("#billingDialog").close());
   $("#billingVerifyUrlai").addEventListener("click", verifyUrlai);
+  $("#exportBillingClose").addEventListener("click", () => $("#exportBillingDialog").close());
+  $("#exportVerifyUrlai").addEventListener("click", verifyExportUrlai);
+  for (const id of ["downloadMarkdown", "downloadJson", "downloadPdf", "downloadMermaid"]) {
+    $("#" + id).addEventListener("click", (event) => {
+      event.preventDefault();
+      const el = event.currentTarget;
+      if (el.dataset.path) { gatedExport(el.dataset.path, el.dataset.fname || "export"); }
+      $("#exportOptions").classList.add("hidden");
+    });
+  }
   $("#messageForm").addEventListener("submit", submitMessage);
   $("#messageInput").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {

@@ -11,6 +11,9 @@
 
 define('KAR_PRICE_JPY', 500);
 define('KAR_PRICE_URLAI', 50000);
+// 設計書出力(ダウンロード): 1回目無料、2回目から都度100円 or 10,000 URLAI(統一レート0.01円/URLAI)
+define('KAR_EXPORT_PRICE_JPY', 100);
+define('KAR_EXPORT_PRICE_URLAI', 10000);
 define('KAR_DATA_DIR', __DIR__ . '/karchitect_data');
 define('KAR_LEDGER', KAR_DATA_DIR . '/credits.json');
 // PayPalはブログと同じLiveアプリ(Client IDは公開値・Secretはブログの403保護ファイルを同一ホストで共用)
@@ -57,11 +60,46 @@ function kar_bill_consume($user) {
     return kar_bill_save($d);
 }
 
-function kar_bill_grant($user, $n, $method, $ref) {
+function kar_bill_grant($user, $n, $method, $ref, $field = 'credits') {
     $d = kar_bill_load();
-    $cur = isset($d['users'][$user]['credits']) ? (int)$d['users'][$user]['credits'] : 0;
-    $d['users'][$user]['credits'] = $cur + (int)$n;
-    $d['users'][$user]['purchases'][] = array('method' => $method, 'ref' => $ref, 'n' => (int)$n, 'ts' => time());
+    $cur = isset($d['users'][$user][$field]) ? (int)$d['users'][$user][$field] : 0;
+    $d['users'][$user][$field] = $cur + (int)$n;
+    $d['users'][$user]['purchases'][] = array('method' => $method, 'ref' => $ref, 'n' => (int)$n,
+        'field' => $field, 'ts' => time());
+    return kar_bill_save($d);
+}
+
+// ---------------------------------------------------------------------------
+// 設計書出力の課金(1回目無料・2回目から都度1出力=1エクスポートクレジット)
+// ---------------------------------------------------------------------------
+function kar_bill_export_state($user) {
+    $d = kar_bill_load();
+    $u = isset($d['users'][$user]) ? $d['users'][$user] : array();
+    return array(
+        'export_used' => isset($u['export_used']) ? (int)$u['export_used'] : 0,
+        'export_credits' => isset($u['export_credits']) ? (int)$u['export_credits'] : 0,
+    );
+}
+
+/** 出力可否: 'free'(初回無料枠) / 'credit'(クレジット消費で可) / 'need_payment'。 */
+function kar_bill_export_gate($user) {
+    $st = kar_bill_export_state($user);
+    if ($st['export_used'] < 1) { return 'free'; }
+    if ($st['export_credits'] >= 1) { return 'credit'; }
+    return 'need_payment';
+}
+
+/** 出力成功時のコミット(無料枠はカウントのみ、それ以降はクレジット消費+カウント)。 */
+function kar_bill_export_commit($user, $mode) {
+    $d = kar_bill_load();
+    $u = isset($d['users'][$user]) ? $d['users'][$user] : array();
+    $used = isset($u['export_used']) ? (int)$u['export_used'] : 0;
+    if ($mode === 'credit') {
+        $cr = isset($u['export_credits']) ? (int)$u['export_credits'] : 0;
+        if ($cr < 1) { return false; }
+        $d['users'][$user]['export_credits'] = $cr - 1;
+    }
+    $d['users'][$user]['export_used'] = $used + 1;
     return kar_bill_save($d);
 }
 
@@ -80,7 +118,7 @@ function kar_http_json($url, $headers, $post_body = null) {
 }
 
 /** PayPal注文を照合し、正当なら1クレジット付与。返り値 [ok, message]。 */
-function kar_bill_grant_paypal($user, $order_id) {
+function kar_bill_grant_paypal($user, $order_id, $price_jpy = KAR_PRICE_JPY, $field = 'credits') {
     $order_id = trim((string)$order_id);
     if (!preg_match('/^[A-Z0-9]{8,32}$/i', $order_id)) { return array(false, '注文IDの形式が不正です'); }
     $d = kar_bill_load();
@@ -98,14 +136,14 @@ function kar_bill_grant_paypal($user, $order_id) {
     if (($order['status'] ?? '') !== 'COMPLETED') { return array(false, '決済が完了していません(status=' . ($order['status'] ?? '?') . ')'); }
     $pu = $order['purchase_units'][0] ?? array();
     $amt = $pu['amount'] ?? ($pu['payments']['captures'][0]['amount'] ?? array());
-    if (($amt['currency_code'] ?? '') !== 'JPY' || (float)($amt['value'] ?? 0) < KAR_PRICE_JPY) {
+    if (($amt['currency_code'] ?? '') !== 'JPY' || (float)($amt['value'] ?? 0) < $price_jpy) {
         return array(false, '決済金額が一致しません');
     }
     $d = kar_bill_load();  // 照合中の並行購入に備えて読み直し
     if (in_array($order_id, $d['used_orders'], true)) { return array(false, 'この注文IDは既に使用されています'); }
     $d['used_orders'][] = $order_id;
     kar_bill_save($d);
-    kar_bill_grant($user, 1, 'paypal', $order_id);
+    kar_bill_grant($user, 1, 'paypal', $order_id, $field);
     return array(true, 'クレジットを1追加しました');
 }
 
@@ -144,7 +182,7 @@ function kar_hex_to_tokens($hex) {
 }
 
 /** walletから受け取りへの未使用URLAI送金(直近~9日)を集め、50,000ごとに1クレジット付与。 */
-function kar_bill_grant_urlai($user, $wallet) {
+function kar_bill_grant_urlai($user, $wallet, $price_urlai = KAR_PRICE_URLAI, $field = 'credits') {
     $wallet = strtolower(trim((string)$wallet));
     if (!preg_match('/^0x[a-f0-9]{40}$/', $wallet)) { return array(false, 'ウォレットアドレスの形式が不正です'); }
     $latest_hex = kar_rpc('eth_blockNumber', array());
@@ -170,16 +208,16 @@ function kar_bill_grant_urlai($user, $wallet) {
         }
     }
     $total = array_sum($found);
-    $credits = (int)floor($total / KAR_PRICE_URLAI);
+    $credits = (int)floor($total / $price_urlai);
     if ($credits < 1) {
         return array(false, sprintf('未使用の受領を確認できませんでした(確認できた未使用額: %s URLAI)。%s URLAIを送金後、数十秒待ってから再試行してください',
-            number_format($total), number_format(KAR_PRICE_URLAI)));
+            number_format($total), number_format($price_urlai)));
     }
     $d = kar_bill_load();
     foreach (array_keys($found) as $key) {
         if (!in_array($key, $d['used_txs'], true)) { $d['used_txs'][] = $key; }
     }
     kar_bill_save($d);
-    kar_bill_grant($user, $credits, 'urlai', $wallet . ':' . implode(',', array_keys($found)));
+    kar_bill_grant($user, $credits, 'urlai', $wallet . ':' . implode(',', array_keys($found)), $field);
     return array(true, sprintf('%s URLAIの受領を確認し、クレジットを%d追加しました', number_format($total), $credits));
 }

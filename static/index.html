@@ -163,6 +163,34 @@
     </form>
   </dialog>
 
+  <dialog id="exportBillingDialog">
+    <form method="dialog" onsubmit="return false">
+      <div class="dialog-kicker">EXPORT</div>
+      <h2>2回目からの出力は有料です</h2>
+      <p>設計書の出力（Markdown / PDF / JSON / Mermaid）は<b>1回目は無料</b>。2回目からは<b>都度 100円 または 10,000 URLAI</b>です。残り出力クレジット: <b id="exportCredits">-</b></p>
+      <div class="bill-methods">
+        <div class="bill-method">
+          <h3>💳 100円（PayPal）</h3>
+          <div id="exportPaypalButtons"></div>
+          <p class="bill-note">決済完了後、ダウンロードが自動で再開されます。</p>
+        </div>
+        <div class="bill-method">
+          <h3>🪙 10,000 URLAI</h3>
+          <p class="bill-note">Baseチェーンで下記アドレスへ <b>10,000 URLAI</b> を送金し、送金元ウォレットを入力して「支払い確認」を押してください（まとめ送金は10,000ごとにクレジット化）。</p>
+          <p class="bill-addr"><code id="exportReceiver">-</code></p>
+          <input id="exportWallet" placeholder="送金元ウォレット (0x…)" autocomplete="off">
+          <div class="dialog-actions" style="justify-content:flex-start;margin-top:10px">
+            <button type="button" id="exportVerifyUrlai" class="button primary">支払い確認</button>
+          </div>
+        </div>
+      </div>
+      <div id="exportBillingMsg" class="bill-msg"></div>
+      <div class="dialog-actions">
+        <button type="button" id="exportBillingClose" class="button secondary">閉じる</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/static/app.js" defer></script>
 </body>
 </html>
