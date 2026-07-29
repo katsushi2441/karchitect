@@ -1,0 +1,12 @@
+[submodule "vendor/metagpt"]
+	path = vendor/metagpt
+	url = https://github.com/FoundationAgents/MetaGPT.git
+	shallow = true
+[submodule "vendor/spec-kit"]
+	path = vendor/spec-kit
+	url = https://github.com/github/spec-kit.git
+	shallow = true
+[submodule "vendor/gpt-engineer"]
+	path = vendor/gpt-engineer
+	url = https://github.com/AntonOsika/gpt-engineer.git
+	shallow = true

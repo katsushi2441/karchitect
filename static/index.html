@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gemmaと相談しながら、要件からシステム設計書を育てるローカルAI設計スタジオ">
+  <title>Kurage Architect — 対話から、実装できる設計書へ。</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <div class="brand-name">Kurage Architect</div>
+          <div class="brand-sub">対話から、実装できる設計書へ。</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="modelBadge" class="model-badge"><i></i> Gemmaを確認中</span>
+        <button id="newProjectButton" class="button secondary">新しい設計</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="projects-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">PROJECTS</span>
+            <h2>設計プロジェクト</h2>
+          </div>
+        </div>
+        <div id="projectList" class="project-list"></div>
+        <div id="progressCard" class="progress-card hidden">
+          <div class="progress-row">
+            <span>設計の完成度</span>
+            <strong id="progressValue">0%</strong>
+          </div>
+          <div class="progress-track"><span id="progressBar"></span></div>
+          <ol id="stageList" class="stages"></ol>
+        </div>
+        <div class="oss-note">
+          <strong>OSS INSPIRED WORKFLOW</strong>
+          <span>MetaGPT · Spec Kit · GPT Engineer</span>
+        </div>
+      </aside>
+
+      <section class="chat-panel">
+        <div class="chat-heading">
+          <div>
+            <span class="eyebrow">DESIGN DIALOGUE</span>
+            <h1 id="projectTitle">システム設計を始めましょう</h1>
+          </div>
+          <span id="stageBadge" class="stage-badge">DISCOVER</span>
+        </div>
+        <div id="warning" class="warning hidden"></div>
+        <div id="messages" class="messages">
+          <div class="empty-chat">
+            <div class="empty-orbit"><span></span></div>
+            <h3>考えているシステムを教えてください</h3>
+            <p>目的や機能が曖昧でも大丈夫です。AIが重要な点を順番に確認します。</p>
+          </div>
+        </div>
+        <form id="messageForm" class="composer">
+          <textarea id="messageInput" rows="3" placeholder="例：飲食店向けの予約管理システムを作りたい…" disabled></textarea>
+          <div class="composer-foot">
+            <span>Enterで送信・Shift+Enterで改行</span>
+            <button id="sendButton" class="button primary" type="submit" disabled>
+              <span>相談する</span><b aria-hidden="true">→</b>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="document-panel">
+        <div class="document-heading">
+          <div>
+            <span class="eyebrow">LIVE DOCUMENT</span>
+            <h2>システム設計書</h2>
+          </div>
+          <div class="export-menu">
+            <button id="exportButton" class="button secondary" disabled>書き出す⌄</button>
+            <div id="exportOptions" class="export-options hidden">
+              <a id="downloadMarkdown">Markdown</a>
+              <a id="downloadJson">要件JSON</a>
+              <a id="downloadPdf">PDF</a>
+              <a id="downloadMermaid">Mermaid</a>
+            </div>
+          </div>
+        </div>
+        <div class="document-tabs" role="tablist">
+          <button class="tab active" data-tab="preview">プレビュー</button>
+          <button class="tab" data-tab="requirements">要件</button>
+          <button class="tab" data-tab="questions">未決事項</button>
+        </div>
+        <div id="previewTab" class="tab-content active">
+          <iframe id="documentFrame" title="システム設計書プレビュー"></iframe>
+          <div id="emptyDocument" class="empty-document">
+            <span>01</span>
+            <h3>設計書は会話と一緒に育ちます</h3>
+            <p>回答が要件JSONへ整理され、右側へ即時反映されます。</p>
+          </div>
+        </div>
+        <div id="requirementsTab" class="tab-content">
+          <div id="requirementsView" class="requirements-view"></div>
+        </div>
+        <div id="questionsTab" class="tab-content">
+          <div id="questionsView" class="questions-view"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="projectDialog">
+    <form id="projectForm" method="dialog">
+      <div class="dialog-kicker">NEW DESIGN PROJECT</div>
+      <h2>何を設計しますか？</h2>
+      <p>最初は短い説明で構いません。Gemmaが必要な情報を確認します。</p>
+      <label>プロジェクト名
+        <input id="newProjectName" required maxlength="100" placeholder="例：店舗予約プラットフォーム">
+      </label>
+      <label>作りたいシステム
+        <textarea id="newProjectIdea" rows="5" maxlength="5000" placeholder="解決したい問題や、思いついている機能を書いてください"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="cancelDialog" class="button secondary">キャンセル</button>
+        <button type="submit" class="button primary">設計を始める →</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
+

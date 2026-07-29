@@ -1,0 +1,18 @@
+[Unit]
+Description=Kurage Architect - conversational system design studio
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kojima/work/karchitect
+Environment=KARCHITECT_HOST=127.0.0.1
+Environment=KARCHITECT_PORT=18347
+Environment=KARCHITECT_MODEL=gemma4:12b-it-qat
+Environment=KARCHITECT_OLLAMA_URL=http://127.0.0.1:11434
+ExecStart=/home/kojima/work/karchitect/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 18347
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+

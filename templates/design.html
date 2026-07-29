@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}} — Kurage Architect</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm; }
+    :root { --ink:#17324d; --muted:#64788c; --aqua:#13a6a6; --line:#cfe6e8; --paper:#fff; --wash:#f4fbfb; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; max-width: 980px; padding: 36px 44px 72px; color: var(--ink); background: var(--paper);
+      font-family: "Noto Sans CJK JP","Noto Sans JP","Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;
+      font-size: 14px; line-height: 1.8; overflow-wrap: break-word; }
+    h1 { margin: 0 0 28px; padding-bottom: 16px; border-bottom: 3px solid var(--aqua); font-size: 30px; line-height: 1.35; }
+    h2 { margin: 42px 0 18px; padding: 10px 14px; border-left: 5px solid var(--aqua); background: var(--wash); font-size: 22px; }
+    h3 { margin: 28px 0 10px; color: #215d72; font-size: 17px; }
+    blockquote { margin: 0 0 28px; padding: 12px 16px; border-left: 4px solid #72d4d1; background: #f6fdfd; color: var(--muted); }
+    table { width: 100%; margin: 14px 0 28px; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--line); padding: 8px 9px; text-align: left; vertical-align: top; }
+    th { color: #155566; background: #eaf8f8; }
+    code { font-family: "Noto Sans Mono CJK JP","SFMono-Regular",Consolas,monospace; }
+    pre { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfc; white-space: pre-wrap; }
+    .mermaid { margin: 24px auto; text-align: center; }
+    a { color: #087f8c; }
+    @media print {
+      body { max-width: none; padding: 0; }
+      h2, h3 { break-after: avoid; }
+      table, pre, .mermaid { break-inside: avoid; }
+    }
+    @media (max-width: 700px) { body { padding: 24px 18px 56px; } table { display:block; overflow-x:auto; } }
+  </style>
+</head>
+<body>
+{{CONTENT}}
+<script src="/static/vendor/mermaid.min.js"></script>
+<script>
+  document.querySelectorAll('pre code.language-mermaid').forEach((code) => {
+    const block = document.createElement('div');
+    block.className = 'mermaid';
+    block.textContent = code.textContent;
+    code.parentElement.replaceWith(block);
+  });
+  if (window.mermaid) mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'strict' });
+</script>
+</body>
+</html>
+
