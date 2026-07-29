@@ -15,6 +15,8 @@ upload() {
 }
 
 upload public/karchitect.php karchitect.php
+upload public/karchitect_billing.php karchitect_billing.php
+upload public/karchitect_data/.htaccess karchitect_data/.htaccess
 upload static/index.html karchitect_app.html
 upload static/styles.css assets/karchitect.css
 upload static/app.js assets/karchitect.js

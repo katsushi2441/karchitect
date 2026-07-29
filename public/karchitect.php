@@ -2,6 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth_common.php';
 require_once __DIR__ . '/karchitect_config.php';
+require_once __DIR__ . '/karchitect_billing.php';
 date_default_timezone_set('Asia/Tokyo');
 
 $THIS_FILE = 'karchitect.php';
@@ -38,6 +39,12 @@ function kar_route($path, $method) {
     if ($path === '/health' && $method === 'GET') {
         return true;
     }
+    if ($path === '/billing/status' && $method === 'GET') {
+        return true;
+    }
+    if (in_array($path, array('/billing/paypal', '/billing/urlai'), true) && $method === 'POST') {
+        return true;
+    }
     if ($path === '/api/projects' && in_array($method, array('GET', 'POST'), true)) {
         return true;
     }
@@ -62,7 +69,21 @@ function kar_route($path, $method) {
     return false;
 }
 
-function kar_proxy($method, $path, $user) {
+function kar_backend_get($path, $user) {
+    // 課金ゲート用の内部GET(既存プロジェクト数の確認)。kar_proxyと違いechoせず返す。
+    $ch = curl_init(rtrim(KARCHITECT_API_BASE, '/') . $path);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => array('Accept: application/json',
+            'X-KArchitect-Token: ' . KARCHITECT_API_TOKEN,
+            'X-KArchitect-User: ' . $user)));
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return array($status, json_decode((string)$body, true));
+}
+
+function kar_proxy($method, $path, $user, $consume_credit_user = null) {
     $headers = array(
         'Accept: */*',
         'Content-Type: application/json',
@@ -111,6 +132,10 @@ function kar_proxy($method, $path, $user) {
     if (str_ends_with($path, '/document.html')) {
         $body = str_replace('/static/vendor/mermaid.min.js', 'assets/karchitect-mermaid.min.js', $body);
     }
+    // 有料枠のプロジェクト作成が成功したときだけクレジットを消費(失敗時は減らさない)
+    if ($consume_credit_user !== null && $status >= 200 && $status < 300) {
+        kar_bill_consume($consume_credit_user);
+    }
     http_response_code($status ?: 502);
     header('Content-Type: ' . $content_type);
     header('Cache-Control: no-store, max-age=0');
@@ -139,6 +164,52 @@ if (isset($_GET['api'])) {
             kar_error(403, 'CSRF検証に失敗しました');
         }
     }
+
+    // ---- 課金(1個目無料・2個目以降 500円 or 50,000 URLAI = クレジット1) ----
+    if ($path === '/billing/status') {
+        list($st, $projects) = kar_backend_get('/api/projects', $session_user);
+        $count = ($st === 200 && is_array($projects)) ? count($projects) : null;
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, max-age=0');
+        echo json_encode(array(
+            'projects' => $count,
+            'first_free' => ($count === 0),
+            'credits' => kar_bill_credits($session_user),
+            'price_jpy' => KAR_PRICE_JPY,
+            'price_urlai' => KAR_PRICE_URLAI,
+            'urlai_receiver' => KAR_URLAI_RECEIVER,
+            'paypal_client_id' => KAR_PAYPAL_CLIENT_ID,
+        ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($path === '/billing/paypal' || $path === '/billing/urlai') {
+        $in = json_decode((string)file_get_contents('php://input'), true);
+        if (!is_array($in)) {
+            kar_error(400, 'JSONを確認してください');
+        }
+        if ($path === '/billing/paypal') {
+            list($ok, $msg) = kar_bill_grant_paypal($session_user, isset($in['order_id']) ? $in['order_id'] : '');
+        } else {
+            list($ok, $msg) = kar_bill_grant_urlai($session_user, isset($in['wallet']) ? $in['wallet'] : '');
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, max-age=0');
+        echo json_encode(array('ok' => $ok, 'message' => $msg,
+            'credits' => kar_bill_credits($session_user)), JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($path === '/api/projects' && $method === 'POST') {
+        list($st, $projects) = kar_backend_get('/api/projects', $session_user);
+        if ($st !== 200 || !is_array($projects)) {
+            kar_error(502, 'Kurage Architect APIへ接続できません');
+        }
+        $needs_credit = count($projects) >= 1;  // 1個目は無料
+        if ($needs_credit && kar_bill_credits($session_user) < 1) {
+            kar_error(402, 'PAYMENT_REQUIRED');
+        }
+        kar_proxy($method, $path, $session_user, $needs_credit ? $session_user : null);
+    }
+
     kar_proxy($method, $path, $session_user);
 }
 
@@ -153,48 +224,129 @@ if (!$logged_in):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-/* kfreqai/kfreqaihl/kfxaiと同一のデザイントークン(2026-07-29統一) */
-:root{--indigo:#2f6bd8;--cyan:#0b91a7;--ink:#17324d;--muted:#64788a;--border:#dbe6ee}
+/* LP: kfreqaiと同一トークンの白ベース版(2026-07-29 ユーザー指定「白ベースの背景」) */
+:root{--indigo:#2f6bd8;--cyan:#0b91a7;--ink:#17324d;--muted:#64788a;--border:#dbe6ee;--coin:#b98422}
 *{box-sizing:border-box}
-body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;color:var(--ink);
-  background:radial-gradient(1000px 600px at 85% -5%,rgba(11,145,167,.10),transparent 60%),
-    radial-gradient(800px 700px at -5% 45%,rgba(47,107,216,.07),transparent 55%),
-    linear-gradient(170deg,#ffffff 0%,#f2f8fa 45%,#eaf5f4 100%);
-  background-attachment:fixed;font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-.card{width:min(620px,100%);padding:48px;border:1px solid var(--border);border-radius:24px;background:#fff;
-  box-shadow:0 10px 26px rgba(25,72,78,.06),0 22px 60px rgba(37,88,105,.10);text-align:center}
-.mark{width:84px;height:84px;margin:0 auto 20px;border-radius:50%;border:3px solid var(--cyan);object-fit:cover;
-  box-shadow:0 10px 26px rgba(11,145,167,.24)}
-h1{margin:0 0 4px;font-size:30px;font-weight:900;font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif}
+body{margin:0;color:var(--ink);background:#ffffff;
+  font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.8}
+.disp{font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif}
+main{max-width:960px;margin:0 auto;padding:0 20px 60px}
+.hero{padding:64px 0 44px;text-align:center}
+.mark{width:96px;height:96px;border-radius:50%;border:3px solid var(--cyan);object-fit:cover;
+  box-shadow:0 10px 26px rgba(11,145,167,.22)}
+h1{margin:18px 0 6px;font-size:clamp(30px,5vw,44px);font-weight:900;letter-spacing:.01em}
 h1 em{font-style:normal;color:var(--indigo)}
-.tagline{display:block;margin:0 0 16px;color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:.1em}
-p{margin:0 auto 26px;max-width:460px;color:var(--muted);line-height:1.9;font-size:14px}
-.feats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 26px;padding:0;list-style:none}
-.feats li{padding:6px 12px;border:1px solid var(--border);border-radius:999px;color:var(--ink);background:#f5fafb;font-size:11.5px;font-weight:700}
-.login{display:inline-block;padding:14px 32px;border-radius:999px;color:#fff;text-decoration:none;font-weight:900;
-  font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif;font-size:15px;
-  background:linear-gradient(90deg,#0b91a7,#2f6bd8);box-shadow:0 10px 26px rgba(11,145,167,.32);transition:transform .15s}
-.login:hover{transform:translateY(-2px)}
-.note{display:block;margin-top:18px;color:var(--muted);font-size:11px}
-.note a{color:var(--indigo)}
+.tagline{display:block;margin:0 0 18px;color:var(--cyan);font-size:14px;font-weight:800;letter-spacing:.12em}
+.lead{max-width:640px;margin:0 auto 28px;color:var(--muted);font-size:15px}
+.cta{display:inline-block;padding:15px 36px;border-radius:999px;color:#fff;text-decoration:none;font-weight:900;font-size:16px;
+  background:linear-gradient(90deg,#0b91a7,#2f6bd8);box-shadow:0 10px 26px rgba(11,145,167,.30);transition:transform .15s}
+.cta:hover{transform:translateY(-2px)}
+.cta-note{display:block;margin-top:12px;color:var(--muted);font-size:12px}
+h2.sec{margin:56px 0 8px;font-size:14px;color:var(--cyan);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+h3.sec-title{margin:0 0 18px;font-size:24px;font-weight:900}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.grid3{grid-template-columns:1fr}}
+.card{padding:20px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 10px 26px rgba(25,72,78,.06)}
+.card .ic{font-size:24px}
+.card b{display:block;margin:8px 0 4px;font-size:15px}
+.card p{margin:0;color:var(--muted);font-size:12.5px}
+.steps{counter-reset:st;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.steps{grid-template-columns:1fr}}
+.step{position:relative;padding:20px 20px 20px 58px;border:1px solid var(--border);border-radius:16px;background:#fff}
+.step::before{counter-increment:st;content:counter(st);position:absolute;left:16px;top:18px;width:30px;height:30px;
+  display:grid;place-items:center;border-radius:50%;color:#fff;font-weight:900;
+  background:linear-gradient(135deg,#0b91a7,#2f6bd8);font-family:"Zen Maru Gothic",sans-serif}
+.step b{display:block;font-size:14px}
+.step p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.pricing{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+@media(max-width:760px){.pricing{grid-template-columns:1fr}}
+.price-card{padding:26px;border:1px solid var(--border);border-radius:18px;background:#fff;text-align:center;box-shadow:0 10px 26px rgba(25,72,78,.06)}
+.price-card.free{border-color:#bfe0d5;background:#f6fcf9}
+.price-card.paid{border-color:#c8d9f4;background:#f8fafd}
+.price-card .plan{font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--muted)}
+.price-card .price{margin:8px 0 2px;font-size:34px;font-weight:900}
+.price-card.free .price{color:#16805f}
+.price-card.paid .price{color:var(--indigo)}
+.price-card .per{color:var(--muted);font-size:12px}
+.price-card ul{margin:14px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12.5px;text-align:left}
+.price-card li{padding:5px 0;border-top:1px dashed var(--border)}
+.price-card li:first-child{border-top:0}
+.paybadges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.paybadge{padding:5px 12px;border:1px solid var(--border);border-radius:999px;font-size:11px;font-weight:700;background:#fff}
+.note-card{margin-top:14px;padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:#fbfdfe;color:var(--muted);font-size:12.5px}
+.note-card a{color:var(--indigo)}
+footer{padding:28px 20px 40px;border-top:1px solid var(--border);color:var(--muted);text-align:center;font-size:12px}
+footer a{color:var(--indigo)}
 </style>
 <!-- Google tag (gtag.js) --><script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BP0650KDFR');</script>
 <script>(function(){var s=document.createElement('script');s.src='https://aiknowledgecms.exbridge.jp/simpletrack.php?url='+encodeURIComponent(location.href)+'&ref='+encodeURIComponent(document.referrer);document.head.appendChild(s)})();</script>
-</head><body><main class="card">
-<img class="mark" src="images/kurage_avatar_face.webp" alt="Kurage">
-<h1>Kurage <em>Architect</em></h1>
-<span class="tagline">対話から、実装できる設計書へ。</span>
-<p>作りたいシステムをKurageさんと相談すると、要件・未決事項・構成図を整理し、<b>実装にそのまま使える設計書</b>へ育てます。ローカルAI（Gemma 4）で動くオープンソースの設計スタジオです。</p>
-<ul class="feats">
-  <li>📝 要件JSON</li>
-  <li>🗺️ Mermaid構成図</li>
-  <li>📄 Markdown / PDF出力</li>
-  <li>🔒 ローカルLLMで完結</li>
-</ul>
-<a class="login" href="?login=1">🪼 Xでログインして使う</a>
-<span class="note">誰でも利用できます。設計プロジェクトはXアカウントごとに分離されます。</span>
-</main></body></html>
+</head><body>
+<main>
+  <section class="hero">
+    <img class="mark" src="images/kurage_avatar_face.webp" alt="Kurage">
+    <h1 class="disp">Kurage <em>Architect</em></h1>
+    <span class="tagline disp">対話から、実装できる設計書へ。</span>
+    <p class="lead">「作りたいものはあるけど、要件がまとまらない」——そんな曖昧なアイデアを、Kurageさんと相談しながら<b>実装にそのまま使えるシステム設計書</b>へ育てる、AI設計スタジオです。ローカルAI（Gemma 4）で動くオープンソースです。</p>
+    <a class="cta disp" href="?login=1">🪼 Xでログインして無料で始める</a>
+    <span class="cta-note">1個目の設計プロジェクトは無料。登録はXログインだけです。</span>
+  </section>
+
+  <h2 class="sec disp">FEATURES</h2>
+  <h3 class="sec-title disp">できること</h3>
+  <div class="grid3">
+    <div class="card"><span class="ic">💬</span><b>AIが要件を聞き出す</b><p>不足情報を1〜3問ずつ確認しながら、確定事項・提案・仮定・未決事項を分けて整理します。</p></div>
+    <div class="card"><span class="ic">🗺️</span><b>構成図まで自動生成</b><p>アーキテクチャ図・クラス図・シーケンス図をMermaidで生成。設計書に組み込まれます。</p></div>
+    <div class="card"><span class="ic">📄</span><b>そのまま渡せる出力</b><p>Markdown・要件JSON・HTML・PDFで出力。AIコーディング(バイブコーディング)の入力にも最適です。</p></div>
+    <div class="card"><span class="ic">🔒</span><b>ローカルLLMで完結</b><p>頭脳はローカルのGemma 4。アイデアが外部のAI事業者に送られることはありません。</p></div>
+    <div class="card"><span class="ic">🧭</span><b>仕様駆動フロー</b><p>discover → clarify → specify → plan → design → review → ready の7段階で設計が育ちます。</p></div>
+    <div class="card"><span class="ic">🛟</span><b>回答を失わない</b><p>LLM障害時もあなたの回答は保存。復旧後に続きから設計を進められます。</p></div>
+  </div>
+
+  <h2 class="sec disp">HOW IT WORKS</h2>
+  <h3 class="sec-title disp">使い方は3ステップ</h3>
+  <div class="steps">
+    <div class="step"><b>Xでログイン</b><p>登録不要。設計プロジェクトはXアカウントごとに分離されます。</p></div>
+    <div class="step"><b>作りたいものを話す</b><p>短い説明でOK。Kurageさんが必要なことを質問しながら要件を固めます。</p></div>
+    <div class="step"><b>設計書を受け取る</b><p>Markdown / JSON / Mermaid / PDFでダウンロード。実装へ直行できます。</p></div>
+  </div>
+
+  <h2 class="sec disp">PRICING</h2>
+  <h3 class="sec-title disp">料金 — 1個目は無料</h3>
+  <div class="pricing">
+    <div class="price-card free">
+      <div class="plan disp">はじめての設計</div>
+      <div class="price disp">無料</div>
+      <div class="per">1個目のプロジェクト</div>
+      <ul>
+        <li>✅ 全機能そのまま使えます（対話・構成図・PDF出力）</li>
+        <li>✅ クレジットカード登録も不要</li>
+        <li>✅ Xログインだけで今すぐ開始</li>
+      </ul>
+    </div>
+    <div class="price-card paid">
+      <div class="plan disp">2個目からのプロジェクト</div>
+      <div class="price disp">500円<span style="font-size:15px;color:var(--muted)"> / 個</span></div>
+      <div class="per">または <b style="color:var(--coin)">50,000 URLAI</b>（買い切り）</div>
+      <ul>
+        <li>💳 PayPal決済 — 完了と同時に自動でプロジェクト枠を追加</li>
+        <li>🪙 URLAIトークン(Base) — 送金をオンチェーンで自動確認</li>
+        <li>♻️ 使い切り型。月額・サブスクではありません</li>
+      </ul>
+      <div class="paybadges"><span class="paybadge">PayPal</span><span class="paybadge">🪙 URLAI</span></div>
+    </div>
+  </div>
+  <div class="note-card">
+    決済は<a href="https://kurage.exbridge.jp/blog/" target="_blank" rel="noopener">Kurageブログの有料記事</a>と同じ仕組み（PayPalはサーバー側で注文照合、URLAIはBaseチェーンのオンチェーン検証）です。URLAIは<a href="https://katsushi2441.github.io/vwork/blog/2026-07-29-urlai-where-to-use.html" target="_blank" rel="noopener">対応サイトを拡大中のプロジェクトトークン</a>で、<a href="https://kurl2earn.exbridge.jp/" target="_blank" rel="noopener">kurl2earn</a>で無料で受け取ることもできます。
+  </div>
+
+  <section class="hero" style="padding:48px 0 8px">
+    <a class="cta disp" href="?login=1">🪼 Xでログインして無料で始める</a>
+    <span class="cta-note">誰でも利用できます。1個目のプロジェクトは無料です。</span>
+  </section>
+</main>
+<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。</footer>
+</body></html>
 <?php
     exit;
 endif;

@@ -8,3 +8,4 @@ data/exports/
 node_modules/
 .env
 public/karchitect_config.php
+public/karchitect_data/credits.json

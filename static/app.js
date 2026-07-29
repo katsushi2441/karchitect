@@ -31,7 +31,9 @@ async function api(path, options = {}) {
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     try { message = (await response.json()).detail || message; } catch (_) {}
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
   }
   return response.json();
 }
@@ -230,14 +232,90 @@ async function createProject(event) {
     await loadProjects(false);
     renderCurrent();
   } catch (error) {
+    if (error.status === 402) {
+      // 2個目以降は有料(1個=500円 or 50,000 URLAI)。決済ダイアログへ。
+      $("#projectDialog").close();
+      openBilling();
+      return;
+    }
     alert(`プロジェクトを作成できませんでした: ${error.message}`);
   }
+}
+
+// ---- 課金(1個目無料・2個目以降 クレジット制。決済はKurageブログの有料記事と同方式) ----
+let billingInfo = null;
+
+async function openBilling() {
+  const dlg = $("#billingDialog");
+  dlg.showModal();
+  $("#billingMsg").textContent = "";
+  try {
+    billingInfo = await api("/billing/status");
+  } catch (error) {
+    $("#billingMsg").textContent = "課金情報を取得できませんでした: " + error.message;
+    return;
+  }
+  $("#billingCredits").textContent = String(billingInfo.credits);
+  $("#billingReceiver").textContent = billingInfo.urlai_receiver;
+  mountPaypal();
+}
+
+function billingSay(message, ok) {
+  const el = $("#billingMsg");
+  el.textContent = message;
+  el.style.color = ok ? "var(--up)" : "var(--down)";
+}
+
+async function billingGranted(data) {
+  $("#billingCredits").textContent = String(data.credits);
+  billingSay(data.message + " このままプロジェクトを作成できます。", true);
+  setTimeout(() => { $("#billingDialog").close(); openDialog(); }, 1200);
+}
+
+function mountPaypal() {
+  const box = $("#karPaypalButtons");
+  if (!billingInfo || box.dataset.mounted) return;
+  const boot = () => {
+    if (!window.paypal || !window.paypal.Buttons) return;
+    box.dataset.mounted = "1";
+    window.paypal.Buttons({
+      style: { layout: "horizontal", height: 38, tagline: false },
+      createOrder: (d, actions) => actions.order.create({
+        purchase_units: [{ description: "Kurage Architect プロジェクト追加",
+          amount: { currency_code: "JPY", value: String(billingInfo.price_jpy) } }],
+      }),
+      onApprove: (d, actions) => actions.order.capture().then(async (order) => {
+        try {
+          const res = await api("/billing/paypal", { method: "POST", body: JSON.stringify({ order_id: order.id }) });
+          if (res.ok) { billingGranted(res); } else { billingSay(res.message || "確認に失敗しました", false); }
+        } catch (error) { billingSay("確認に失敗しました: " + error.message, false); }
+      }),
+      onError: () => billingSay("PayPal決済でエラーが発生しました。時間をおいて再試行してください", false),
+    }).render("#karPaypalButtons");
+  };
+  if (window.paypal) { boot(); return; }
+  const s = document.createElement("script");
+  s.src = "https://www.paypal.com/sdk/js?client-id=" + encodeURIComponent(billingInfo.paypal_client_id) + "&currency=JPY";
+  s.onload = boot;
+  document.head.appendChild(s);
+}
+
+async function verifyUrlai() {
+  const wallet = $("#billingWallet").value.trim();
+  if (!wallet) { billingSay("送金元ウォレットアドレスを入力してください", false); return; }
+  billingSay("オンチェーンで確認中…（数秒かかります）", true);
+  try {
+    const res = await api("/billing/urlai", { method: "POST", body: JSON.stringify({ wallet }) });
+    if (res.ok) { billingGranted(res); } else { billingSay(res.message || "確認できませんでした", false); }
+  } catch (error) { billingSay("確認に失敗しました: " + error.message, false); }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("#newProjectButton").addEventListener("click", openDialog);
   $("#cancelDialog").addEventListener("click", () => $("#projectDialog").close());
   $("#projectForm").addEventListener("submit", createProject);
+  $("#billingClose").addEventListener("click", () => $("#billingDialog").close());
+  $("#billingVerifyUrlai").addEventListener("click", verifyUrlai);
   $("#messageForm").addEventListener("submit", submitMessage);
   $("#messageInput").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {

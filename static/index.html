@@ -135,6 +135,34 @@
     </form>
   </dialog>
 
+  <dialog id="billingDialog">
+    <form method="dialog" onsubmit="return false">
+      <div class="dialog-kicker">ADD PROJECT SLOT</div>
+      <h2>2個目からは有料です</h2>
+      <p>1個目のプロジェクトは無料。2個目以降は<b>1個 = 500円 または 50,000 URLAI</b>（買い切り・Kurageブログの有料記事と同じ決済方式）。現在のクレジット: <b id="billingCredits">-</b></p>
+      <div class="bill-methods">
+        <div class="bill-method">
+          <h3>💳 500円（PayPal）</h3>
+          <div id="karPaypalButtons"></div>
+          <p class="bill-note">決済完了で自動的にクレジットが追加されます。</p>
+        </div>
+        <div class="bill-method">
+          <h3>🪙 50,000 URLAI</h3>
+          <p class="bill-note">Baseチェーンで下記アドレスへ <b>50,000 URLAI</b> を送金し、送金元ウォレットを入力して「支払い確認」を押してください（まとめ送金は50,000ごとにクレジット化）。</p>
+          <p class="bill-addr"><code id="billingReceiver">-</code></p>
+          <input id="billingWallet" placeholder="送金元ウォレット (0x…)" autocomplete="off">
+          <div class="dialog-actions" style="justify-content:flex-start;margin-top:10px">
+            <button type="button" id="billingVerifyUrlai" class="button primary">支払い確認</button>
+          </div>
+        </div>
+      </div>
+      <div id="billingMsg" class="bill-msg"></div>
+      <div class="dialog-actions">
+        <button type="button" id="billingClose" class="button secondary">閉じる</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/static/app.js" defer></script>
 </body>
 </html>
