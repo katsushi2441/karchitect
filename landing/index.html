@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kurage Architect | Turn conversations into implementation-ready system design docs — first project free</title>
+<meta name="description" content="Grow a vague idea into an implementation-ready system design document by talking with AI: requirements, open questions, Mermaid diagrams, Markdown/PDF export. Open source, runs on a local LLM (Gemma 4). First project free.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://karchitect.exbridge.jp/">
+<link rel="alternate" hreflang="en" href="https://karchitect.exbridge.jp/">
+<link rel="alternate" hreflang="ja" href="https://karchitect.exbridge.jp/karchitect.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Kurage Architect">
+<meta property="og:title" content="Kurage Architect — From conversation to implementation-ready design docs">
+<meta property="og:description" content="Talk with AI to produce system design docs with requirements and Mermaid diagrams. First project free. Local LLM. Open source.">
+<meta property="og:url" content="https://karchitect.exbridge.jp/">
+<meta property="og:image" content="https://kurage.exbridge.jp/images/karchitect-ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kurage.exbridge.jp/images/karchitect-ogp.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Kurage Architect",
+  "url": "https://kurage.exbridge.jp/karchitect.php",
+  "description": "An open-source design studio that turns conversations with AI into implementation-ready system design documents with Mermaid diagrams, Markdown and PDF export.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "inLanguage": "en",
+  "image": "https://kurage.exbridge.jp/images/karchitect-ogp.png",
+  "offers": [
+    {"@type": "Offer", "price": "0", "priceCurrency": "JPY", "description": "First design project is free"},
+    {"@type": "Offer", "price": "500", "priceCurrency": "JPY", "description": "Each additional project (one-time)"}
+  ]
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+/* karchitect LP — white base, same design tokens as the Kurage dashboards */
+:root{--indigo:#2f6bd8;--cyan:#0b91a7;--ink:#17324d;--muted:#64788a;--border:#dbe6ee;--coin:#b98422}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:#ffffff;font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.8}
+.disp{font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif}
+.lang{position:absolute;top:18px;right:20px;font-size:12px}
+.lang a{color:var(--muted);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:999px}
+.lang a.on{color:#fff;background:linear-gradient(90deg,#0b91a7,#2f6bd8);border-color:transparent;font-weight:700}
+main{max-width:960px;margin:0 auto;padding:0 20px 60px;position:relative}
+.hero{padding:64px 0 44px;text-align:center}
+.mark{width:96px;height:96px;border-radius:50%;border:3px solid var(--cyan);object-fit:cover;box-shadow:0 10px 26px rgba(11,145,167,.22)}
+h1{margin:18px 0 6px;font-size:clamp(30px,5vw,44px);font-weight:900;letter-spacing:.01em}
+h1 em{font-style:normal;color:var(--indigo)}
+.tagline{display:block;margin:0 0 18px;color:var(--cyan);font-size:14px;font-weight:800;letter-spacing:.12em}
+.lead{max-width:640px;margin:0 auto 28px;color:var(--muted);font-size:15px}
+.cta{display:inline-block;padding:15px 36px;border-radius:999px;color:#fff;text-decoration:none;font-weight:900;font-size:16px;background:linear-gradient(90deg,#0b91a7,#2f6bd8);box-shadow:0 10px 26px rgba(11,145,167,.30);transition:transform .15s}
+.cta:hover{transform:translateY(-2px)}
+.cta.ghost{color:var(--ink);background:#fff;border:1.5px solid var(--border);box-shadow:none;font-size:14px;padding:13px 26px}
+.cta-note{display:block;margin-top:12px;color:var(--muted);font-size:12px}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+h2.sec{margin:56px 0 8px;font-size:14px;color:var(--cyan);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+h3.sec-title{margin:0 0 18px;font-size:24px;font-weight:900}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.grid3{grid-template-columns:1fr}}
+.card{padding:20px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 10px 26px rgba(25,72,78,.06)}
+.card .ic{font-size:24px}
+.card b{display:block;margin:8px 0 4px;font-size:15px}
+.card p{margin:0;color:var(--muted);font-size:12.5px}
+.steps{counter-reset:st;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.steps{grid-template-columns:1fr}}
+.step{position:relative;padding:20px 20px 20px 58px;border:1px solid var(--border);border-radius:16px;background:#fff}
+.step::before{counter-increment:st;content:counter(st);position:absolute;left:16px;top:18px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:#fff;font-weight:900;background:linear-gradient(135deg,#0b91a7,#2f6bd8);font-family:"Zen Maru Gothic",sans-serif}
+.step b{display:block;font-size:14px}
+.step p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.pricing{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+@media(max-width:760px){.pricing{grid-template-columns:1fr}}
+.price-card{padding:26px;border:1px solid var(--border);border-radius:18px;background:#fff;text-align:center;box-shadow:0 10px 26px rgba(25,72,78,.06)}
+.price-card.free{border-color:#bfe0d5;background:#f6fcf9}
+.price-card.paid{border-color:#c8d9f4;background:#f8fafd}
+.price-card .plan{font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--muted)}
+.price-card .price{margin:8px 0 2px;font-size:34px;font-weight:900}
+.price-card.free .price{color:#16805f}
+.price-card.paid .price{color:var(--indigo)}
+.price-card .per{color:var(--muted);font-size:12px}
+.price-card ul{margin:14px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12.5px;text-align:left}
+.price-card li{padding:5px 0;border-top:1px dashed var(--border)}
+.price-card li:first-child{border-top:0}
+.note-card{margin-top:14px;padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:#fbfdfe;color:var(--muted);font-size:12.5px}
+.note-card a{color:var(--indigo)}
+footer{padding:28px 20px 40px;border-top:1px solid var(--border);color:var(--muted);text-align:center;font-size:12px}
+footer a{color:var(--indigo)}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BP0650KDFR');</script>
+<script>(function(){var s=document.createElement('script');s.src='https://aiknowledgecms.exbridge.jp/simpletrack.php?url='+encodeURIComponent(location.href)+'&ref='+encodeURIComponent(document.referrer);document.head.appendChild(s)})();</script>
+</head>
+<body>
+<main>
+  <div class="lang"><a class="on" href="/">EN</a> <a href="/karchitect.html">日本語</a></div>
+  <section class="hero">
+    <img class="mark" src="https://kurage.exbridge.jp/images/kurage_avatar_face.webp" alt="Kurage">
+    <h1 class="disp">Kurage <em>Architect</em></h1>
+    <span class="tagline disp">From conversation to implementation-ready design docs.</span>
+    <p class="lead">"I know what I want to build, but the requirements won't come together." Kurage Architect grows that vague idea into a <b>system design document you can implement from directly</b> — by talking it through with AI. Open source, powered by a local LLM (Gemma 4).</p>
+    <div class="cta-row">
+      <a class="cta disp" href="https://kurage.exbridge.jp/karchitect.php">🪼 Start free (first project free)</a>
+      <a class="cta ghost disp" href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">View code on GitHub</a>
+    </div>
+    <span class="cta-note">Sign in with X. No credit card required.</span>
+  </section>
+
+  <h2 class="sec disp">FEATURES</h2>
+  <h3 class="sec-title disp">What it does</h3>
+  <div class="grid3">
+    <div class="card"><span class="ic">💬</span><b>AI elicits your requirements</b><p>Asks 1–3 focused questions at a time, separating decisions, proposals, assumptions and open questions.</p></div>
+    <div class="card"><span class="ic">🗺️</span><b>Diagrams generated for you</b><p>Architecture, class and sequence diagrams in Mermaid, embedded straight into the design doc.</p></div>
+    <div class="card"><span class="ic">📄</span><b>Hand-off-ready output</b><p>Export as Markdown, requirements JSON, HTML or PDF — a perfect input for AI coding sessions.</p></div>
+    <div class="card"><span class="ic">🔒</span><b>Local LLM, private by design</b><p>The brain is a local Gemma 4. Your ideas are never sent to external AI providers.</p></div>
+    <div class="card"><span class="ic">🧭</span><b>Spec-driven flow</b><p>Your design matures through 7 stages: discover → clarify → specify → plan → design → review → ready.</p></div>
+    <div class="card"><span class="ic">🛟</span><b>Your answers are never lost</b><p>Even if the LLM fails, your answers are saved. Resume the design when it recovers.</p></div>
+  </div>
+
+  <h2 class="sec disp">HOW IT WORKS</h2>
+  <h3 class="sec-title disp">Three steps</h3>
+  <div class="steps">
+    <div class="step"><b>Sign in with X</b><p>No registration. Design projects are isolated per X account.</p></div>
+    <div class="step"><b>Describe what you want</b><p>A short description is enough. Kurage asks the right questions to firm up requirements.</p></div>
+    <div class="step"><b>Receive the design doc</b><p>Download as Markdown / JSON / Mermaid / PDF and go straight to implementation.</p></div>
+  </div>
+
+  <h2 class="sec disp">PRICING</h2>
+  <h3 class="sec-title disp">Pricing — the first one is free</h3>
+  <div class="pricing">
+    <div class="price-card free">
+      <div class="plan disp">YOUR FIRST DESIGN</div>
+      <div class="price disp">Free</div>
+      <div class="per">first project</div>
+      <ul>
+        <li>✅ Full feature set (conversation, diagrams, PDF export)</li>
+        <li>✅ No credit card required</li>
+        <li>✅ Start now with just an X login</li>
+      </ul>
+    </div>
+    <div class="price-card paid">
+      <div class="plan disp">ADDITIONAL PROJECTS</div>
+      <div class="price disp">¥500<span style="font-size:15px;color:var(--muted)"> / project</span></div>
+      <div class="per">or <b style="color:var(--coin)">50,000 URLAI</b> (one-time)</div>
+      <ul>
+        <li>💳 PayPal — a project slot is added automatically on completion</li>
+        <li>🪙 URLAI token (Base) — transfers verified on-chain</li>
+        <li>♻️ Pay per project. No subscription.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note-card">
+    Payments use the same rails as the <a href="https://kurage.exbridge.jp/blog/" target="_blank" rel="noopener">Kurage blog's paid articles</a> (server-side PayPal order verification; on-chain verification on Base for URLAI). URLAI is <a href="https://katsushi2441.github.io/vwork/blog/2026-07-29-urlai-where-to-use.html" target="_blank" rel="noopener">a project token with a growing list of places to use it</a> — you can also earn it for free via <a href="https://kurl2earn.exbridge.jp/" target="_blank" rel="noopener">kurl2earn</a>.
+  </div>
+
+  <section class="hero" style="padding:48px 0 8px">
+    <a class="cta disp" href="https://kurage.exbridge.jp/karchitect.php">🪼 Start free (first project free)</a>
+    <span class="cta-note">Open to everyone. Your designs are processed by a local LLM and never sent to external AI providers.</span>
+  </section>
+</main>
+<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/karchitect.php">Open the app</a> · <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">Open source (GitHub)</a> · <a href="https://kurage.exbridge.jp/">Kurage Project</a> · <a href="https://exbridge.jp/">EXBRIDGE, Inc.</a></footer>
+</body>
+</html>
