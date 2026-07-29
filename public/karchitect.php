@@ -149,17 +149,52 @@ if (!$logged_in):
 <title>Kurage Architect | AIシステム設計スタジオ</title>
 <meta name="description" content="Gemmaと対話しながら要件を整理し、Markdown・Mermaid・PDFのシステム設計書を作成します。">
 <link rel="canonical" href="https://kurage.exbridge.jp/karchitect.php">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#17324d;--muted:#657f92;--aqua:#10a7a3;--line:#d8e8eb;--wash:#edfafa}
-*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;color:var(--ink);background:radial-gradient(circle at 20% 10%,#dff8f5,transparent 35%),#f4f9fa;font-family:"Noto Sans JP","Yu Gothic",sans-serif}
-.card{width:min(620px,100%);padding:48px;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 22px 60px rgba(37,88,105,.12);text-align:center}
-.mark{width:70px;height:70px;margin:0 auto 22px;display:grid;place-items:center;border-radius:22px;color:#fff;background:linear-gradient(145deg,var(--aqua),#087c82);font-size:25px;font-weight:900}
-h1{margin:0 0 10px;font-size:30px}p{margin:0 auto 24px;max-width:460px;color:var(--muted);line-height:1.8}.login{display:inline-block;padding:12px 25px;border-radius:11px;color:#fff;background:#17324d;text-decoration:none;font-weight:800}.note{display:block;margin-top:18px;color:var(--muted);font-size:11px}
+/* kfreqai/kfreqaihl/kfxaiと同一のデザイントークン(2026-07-29統一) */
+:root{--indigo:#2f6bd8;--cyan:#0b91a7;--ink:#17324d;--muted:#64788a;--border:#dbe6ee}
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;color:var(--ink);
+  background:radial-gradient(1000px 600px at 85% -5%,rgba(11,145,167,.10),transparent 60%),
+    radial-gradient(800px 700px at -5% 45%,rgba(47,107,216,.07),transparent 55%),
+    linear-gradient(170deg,#ffffff 0%,#f2f8fa 45%,#eaf5f4 100%);
+  background-attachment:fixed;font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.card{width:min(620px,100%);padding:48px;border:1px solid var(--border);border-radius:24px;background:#fff;
+  box-shadow:0 10px 26px rgba(25,72,78,.06),0 22px 60px rgba(37,88,105,.10);text-align:center}
+.mark{width:84px;height:84px;margin:0 auto 20px;border-radius:50%;border:3px solid var(--cyan);object-fit:cover;
+  box-shadow:0 10px 26px rgba(11,145,167,.24)}
+h1{margin:0 0 4px;font-size:30px;font-weight:900;font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif}
+h1 em{font-style:normal;color:var(--indigo)}
+.tagline{display:block;margin:0 0 16px;color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:.1em}
+p{margin:0 auto 26px;max-width:460px;color:var(--muted);line-height:1.9;font-size:14px}
+.feats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 26px;padding:0;list-style:none}
+.feats li{padding:6px 12px;border:1px solid var(--border);border-radius:999px;color:var(--ink);background:#f5fafb;font-size:11.5px;font-weight:700}
+.login{display:inline-block;padding:14px 32px;border-radius:999px;color:#fff;text-decoration:none;font-weight:900;
+  font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif;font-size:15px;
+  background:linear-gradient(90deg,#0b91a7,#2f6bd8);box-shadow:0 10px 26px rgba(11,145,167,.32);transition:transform .15s}
+.login:hover{transform:translateY(-2px)}
+.note{display:block;margin-top:18px;color:var(--muted);font-size:11px}
+.note a{color:var(--indigo)}
 </style>
 <!-- Google tag (gtag.js) --><script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BP0650KDFR');</script>
 <script>(function(){var s=document.createElement('script');s.src='https://aiknowledgecms.exbridge.jp/simpletrack.php?url='+encodeURIComponent(location.href)+'&ref='+encodeURIComponent(document.referrer);document.head.appendChild(s)})();</script>
-</head><body><main class="card"><div class="mark">KA</div><h1>Kurage Architect</h1><p>作りたいシステムをAIと相談すると、要件・未決事項・構成図を整理し、実装に使える設計書へ育てます。</p><a class="login" href="?login=1">Xでログインして使う</a><span class="note">誰でも利用できます。設計プロジェクトはXアカウントごとに分離されます。</span></main></body></html>
+</head><body><main class="card">
+<img class="mark" src="images/kurage_avatar_face.webp" alt="Kurage">
+<h1>Kurage <em>Architect</em></h1>
+<span class="tagline">対話から、実装できる設計書へ。</span>
+<p>作りたいシステムをKurageさんと相談すると、要件・未決事項・構成図を整理し、<b>実装にそのまま使える設計書</b>へ育てます。ローカルAI（Gemma 4）で動くオープンソースの設計スタジオです。</p>
+<ul class="feats">
+  <li>📝 要件JSON</li>
+  <li>🗺️ Mermaid構成図</li>
+  <li>📄 Markdown / PDF出力</li>
+  <li>🔒 ローカルLLMで完結</li>
+</ul>
+<a class="login" href="?login=1">🪼 Xでログインして使う</a>
+<span class="note">誰でも利用できます。設計プロジェクトはXアカウントごとに分離されます。</span>
+</main></body></html>
 <?php
     exit;
 endif;

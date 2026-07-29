@@ -130,7 +130,7 @@ function renderMessages(messages) {
   target.innerHTML = messages.filter((message) => message.role !== "system").map((message) => {
     const user = message.role === "user";
     return `<div class="message ${user ? "user" : "assistant"}">
-      <div class="message-avatar">${user ? "YOU" : "KA"}</div>
+      <div class="message-avatar">${user ? "YOU" : '<img src="images/kurage_avatar_face.webp" alt="Kurage">'}</div>
       <div class="message-body">
         <div class="message-label">${user ? "YOU" : "KURAGE ARCHITECT"}</div>
         <div class="message-bubble">${escapeHtml(message.content)}</div>
@@ -180,7 +180,7 @@ function setBusy(busy) {
   $("#sendButton").disabled = busy || !state.current;
   $("#messageInput").disabled = busy || !state.current;
   if (busy) {
-    $("#messages").insertAdjacentHTML("beforeend", `<div id="typing" class="message assistant"><div class="message-avatar">KA</div><div class="typing"><i></i><i></i><i></i></div></div>`);
+    $("#messages").insertAdjacentHTML("beforeend", `<div id="typing" class="message assistant"><div class="message-avatar"><img src="images/kurage_avatar_face.webp" alt="Kurage"></div><div class="typing"><i></i><i></i><i></i></div></div>`);
     $("#messages").scrollTop = $("#messages").scrollHeight;
   } else {
     $("#typing")?.remove();
