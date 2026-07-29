@@ -217,9 +217,42 @@ if (!$logged_in):
 ?><!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kurage Architect | AIシステム設計スタジオ</title>
-<meta name="description" content="Gemmaと対話しながら要件を整理し、Markdown・Mermaid・PDFのシステム設計書を作成します。">
+<title>Kurage Architect | AIと対話して作るシステム設計書（1個目無料・要件定義/Mermaid構成図/PDF出力）</title>
+<meta name="description" content="曖昧なアイデアを、AIと相談しながら要件・未決事項・構成図つきのシステム設計書へ。ローカルLLM(Gemma 4)で動くオープンソースの設計スタジオ。1個目のプロジェクトは無料、Markdown・Mermaid・PDF出力対応。">
+<meta name="robots" content="index, follow">
 <link rel="canonical" href="https://kurage.exbridge.jp/karchitect.php">
+<!-- OGP / Twitter Card -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Kurageプロジェクト">
+<meta property="og:title" content="Kurage Architect — 対話から、実装できる設計書へ。">
+<meta property="og:description" content="曖昧なアイデアを、AIと相談しながら要件・構成図つきのシステム設計書に。ローカルLLMで動くオープンソース。1個目のプロジェクトは無料。">
+<meta property="og:url" content="https://kurage.exbridge.jp/karchitect.php">
+<meta property="og:image" content="https://kurage.exbridge.jp/images/karchitect-ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Kurage Architect — 対話から、実装できる設計書へ。">
+<meta name="twitter:description" content="AIと相談しながら要件・構成図つきのシステム設計書に。1個目無料・ローカルLLM・オープンソース。">
+<meta name="twitter:image" content="https://kurage.exbridge.jp/images/karchitect-ogp.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Kurage Architect",
+  "url": "https://kurage.exbridge.jp/karchitect.php",
+  "description": "AIと対話しながら要件を整理し、Mermaid構成図・Markdown・PDFのシステム設計書を作成するオープンソースの設計スタジオ。",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "inLanguage": "ja",
+  "image": "https://kurage.exbridge.jp/images/karchitect-ogp.png",
+  "offers": [
+    {"@type": "Offer", "price": "0", "priceCurrency": "JPY", "description": "1個目の設計プロジェクトは無料"},
+    {"@type": "Offer", "price": "500", "priceCurrency": "JPY", "description": "2個目以降のプロジェクト(1個・買い切り)"}
+  ],
+  "publisher": {"@type": "Organization", "name": "Kurageプロジェクト", "url": "https://kurage.exbridge.jp/"}
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
