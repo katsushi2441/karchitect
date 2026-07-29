@@ -61,6 +61,16 @@ Gemma 4は思考型モデルのため、Kurage ArchitectはOllama APIへ必ず
 | GET | `/api/projects/{id}/document.pdf` | PDF |
 | GET | `/api/projects/{id}/mermaid/{diagram}` | Mermaidソース |
 
+## 公開Web版
+
+`https://kurage.exbridge.jp/karchitect.php` では、Kurage共通のX認証で誰でも利用できます。
+PHPゲートウェイが認証済みXユーザー名と内部トークンをAPIへ渡し、プロジェクトは
+ユーザー単位で分離されます。ブラウザへAPIトークンを公開しません。
+
+公開に必要な設定は `.env.example` と
+`public/karchitect_config.php.example` を参照してください。秘密値を設定後、
+`scripts/deploy.sh` でPHP・UI・MermaidアセットをFTP配備します。
+
 ## データ
 
 既定では`data/karchitect.db`へSQLite形式で保存します。会話履歴だけに依存せず、
@@ -75,4 +85,3 @@ Gemma 4は思考型モデルのため、Kurage ArchitectはOllama APIへ必ず
 ## ライセンス
 
 MIT
-

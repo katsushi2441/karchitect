@@ -14,9 +14,18 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[c]));
 
+function apiUrl(path) {
+  const gateway = window.KARCHITECT_GATEWAY || "";
+  return gateway ? `${gateway}?api=${encodeURIComponent(path)}` : path;
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  const response = await fetch(apiUrl(path), {
+    headers: {
+      "Content-Type": "application/json",
+      ...(window.KARCHITECT_CSRF ? { "X-CSRF-Token": window.KARCHITECT_CSRF } : {}),
+      ...(options.headers || {}),
+    },
     ...options,
   });
   if (!response.ok) {
@@ -100,7 +109,8 @@ function renderCurrent() {
   if (project.document_markdown) {
     $("#emptyDocument").classList.add("hidden");
     $("#documentFrame").classList.remove("hidden");
-    $("#documentFrame").src = `/api/projects/${project.id}/document.html?t=${Date.now()}`;
+    const previewUrl = apiUrl(`/api/projects/${project.id}/document.html`);
+    $("#documentFrame").src = `${previewUrl}${previewUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
   } else {
     $("#documentFrame").classList.add("hidden");
     $("#emptyDocument").classList.remove("hidden");
@@ -159,10 +169,10 @@ function renderQuestions(questions) {
 }
 
 function setExportLinks(id) {
-  $("#downloadMarkdown").href = `/api/projects/${id}/document.md`;
-  $("#downloadJson").href = `/api/projects/${id}/requirements.json`;
-  $("#downloadPdf").href = `/api/projects/${id}/document.pdf`;
-  $("#downloadMermaid").href = `/api/projects/${id}/mermaid/architecture`;
+  $("#downloadMarkdown").href = apiUrl(`/api/projects/${id}/document.md`);
+  $("#downloadJson").href = apiUrl(`/api/projects/${id}/requirements.json`);
+  $("#downloadPdf").href = apiUrl(`/api/projects/${id}/document.pdf`);
+  $("#downloadMermaid").href = apiUrl(`/api/projects/${id}/mermaid/architecture`);
 }
 
 function setBusy(busy) {
@@ -249,4 +259,3 @@ document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([checkHealth(), loadProjects()]);
   if (!state.projects.length) openDialog();
 });
-

@@ -1,0 +1,5 @@
+<?php
+// Copy to karchitect_config.php and replace the token.
+// karchitect_config.php is gitignored and must never be committed.
+define('KARCHITECT_API_BASE', getenv('KARCHITECT_API_BASE') ?: 'http://exbridge.ddns.net:18347');
+define('KARCHITECT_API_TOKEN', getenv('KARCHITECT_API_TOKEN') ?: 'CHANGE_ME');

@@ -15,4 +15,5 @@ OLLAMA_URL = os.environ.get("KARCHITECT_OLLAMA_URL", "http://127.0.0.1:11434").r
 DEFAULT_MODEL = os.environ.get("KARCHITECT_MODEL", "gemma4:12b-it-qat")
 DB_PATH = Path(os.environ.get("KARCHITECT_DB", DATA_DIR / "karchitect.db"))
 LLM_TIMEOUT = float(os.environ.get("KARCHITECT_LLM_TIMEOUT", "180"))
-
+INTERNAL_TOKEN = os.environ.get("KARCHITECT_INTERNAL_TOKEN", "")
+DEV_USER = os.environ.get("KARCHITECT_DEV_USER", "local")

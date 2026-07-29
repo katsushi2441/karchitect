@@ -7,4 +7,4 @@ data/*.db
 data/exports/
 node_modules/
 .env
-
+public/karchitect_config.php

@@ -45,6 +45,8 @@ button { color: inherit; }
 .brand-name { font-size: 17px; font-weight: 800; letter-spacing: .02em; }
 .brand-sub { margin-top: -2px; color: var(--muted); font-size: 11px; letter-spacing: .06em; }
 .top-actions { display:flex; align-items:center; gap:12px; }
+.top-actions a { text-decoration:none; }
+.authenticated-user { max-width:180px; overflow:hidden; color:var(--ink-soft); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
 .model-badge { display:inline-flex; align-items:center; gap:8px; padding:7px 11px; border:1px solid var(--line); border-radius:999px; color:var(--ink-soft); background:#fff; font-size:12px; }
 .model-badge i { width:8px; height:8px; border-radius:50%; background:#e5ae47; box-shadow:0 0 0 4px #fff4d9; }
 .model-badge.online i { background:#39b878; box-shadow:0 0 0 4px #e4f8ed; }
@@ -180,4 +182,3 @@ dialog input:focus, dialog textarea:focus { border-color:var(--aqua); box-shadow
   .composer { margin:0 12px 12px; }
   .message-body { max-width:90%; }
 }
-

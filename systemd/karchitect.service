@@ -5,14 +5,14 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/kojima/work/karchitect
-Environment=KARCHITECT_HOST=127.0.0.1
+EnvironmentFile=-/home/kojima/work/karchitect/.env
+Environment=KARCHITECT_HOST=0.0.0.0
 Environment=KARCHITECT_PORT=18347
 Environment=KARCHITECT_MODEL=gemma4:12b-it-qat
 Environment=KARCHITECT_OLLAMA_URL=http://127.0.0.1:11434
-ExecStart=/home/kojima/work/karchitect/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 18347
+ExecStart=/home/kojima/work/karchitect/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 18347
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=default.target
-
