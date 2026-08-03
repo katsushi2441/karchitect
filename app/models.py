@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from datetime import datetime
 from typing import Literal
 
@@ -133,8 +135,13 @@ class ProjectCreate(BaseModel):
     model: str = Field(default="")
 
 
+# 会話1発話の上限。設計書やドキュメントの貼り付けを受け付ける場所ではない。
+# 長文を丸ごと投げられると要件が肥大し、LLMの再出力が破綻する(2026-08-03)。
+MESSAGE_MAX_CHARS = int(os.environ.get("KARCHITECT_MESSAGE_MAX_CHARS", "256"))
+
+
 class MessageCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=12000)
+    content: str = Field(min_length=1, max_length=MESSAGE_MAX_CHARS)
 
 
 class Message(BaseModel):

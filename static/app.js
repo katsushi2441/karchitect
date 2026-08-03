@@ -10,6 +10,8 @@ const stages = [
 ];
 
 const $ = (selector) => document.querySelector(selector);
+// 会話1発話の上限。ドキュメントを丸ごと貼る場所ではない。
+const MESSAGE_MAX = 256;
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[c]));
@@ -199,6 +201,10 @@ async function submitMessage(event) {
   const input = $("#messageInput");
   const content = input.value.trim();
   if (!content || !state.current || state.busy) return;
+  if (content.length > MESSAGE_MAX) {
+    alert(`1回の発話は${MESSAGE_MAX}文字までです（現在${content.length}文字）。\n設計書や仕様書の貼り付けではなく、会話として要点を分けて送ってください。`);
+    return;
+  }
   input.value = "";
   state.current.messages.push({ role: "user", content, id: Date.now(), created_at: "" });
   renderMessages(state.current.messages);
@@ -447,3 +453,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([checkHealth(), loadProjects()]);
   if (!state.projects.length) openDialog();
 });
+
+
+// 入力中の残り文字数を出す。上限に達したことが分かるようにする。
+(function initCharCount() {
+  const input = document.querySelector("#messageInput");
+  const counter = document.querySelector("#charCount");
+  if (!input || !counter) return;
+  const update = () => {
+    const n = input.value.length;
+    counter.textContent = `${n} / ${MESSAGE_MAX}`;
+    counter.classList.toggle("over", n >= MESSAGE_MAX);
+  };
+  input.addEventListener("input", update);
+  update();
+})();
