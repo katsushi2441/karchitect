@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,8 @@ from .models import (
     ProjectSummary,
     Requirements,
 )
+
+logger = logging.getLogger("karchitect")
 
 
 @asynccontextmanager
@@ -172,6 +175,14 @@ async def send_message(
             turn = await chat_turn(row["model"], req, history, payload.content.strip())
         except (OllamaError, ValueError, json.JSONDecodeError) as exc:
             warning = str(exc)
+            # ログに残さないと障害に気づけない。2026-08-03にLLMタイムアウトで
+            # 利用者の作業が止まったが、記録がDBのllm_warning列にしか無く、
+            # サービスのログには何も出ていなかった。
+            logger.warning(
+                "LLM turn failed: owner=%s project=%s model=%s history=%d 文字数=%d: %s",
+                owner, project_id, row["model"], len(history),
+                len(payload.content.strip()), warning,
+            )
             turn = fallback_turn(req, payload.content.strip(), warning)
         document = build_markdown(turn.requirements)
         save_project(owner, project_id, turn.requirements, document, llm_warning=warning)

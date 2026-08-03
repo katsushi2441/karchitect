@@ -54,8 +54,18 @@ async def chat_turn(
         async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
             response = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
             response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        # httpx.ReadTimeout は str() が空になるため、そのまま埋め込むと
+        # 「Ollamaへの接続に失敗しました: 」とだけ出て原因が分からない
+        # (2026-08-03、実際にこれで切り分けが遅れた)。
+        # GPUは1枚を他サービスと共有しているので、混雑時は待ち時間が延びる。
+        raise OllamaError(
+            f"AIの応答が{LLM_TIMEOUT:.0f}秒以内に返りませんでした"
+            f"（{type(exc).__name__}）。GPUが混雑している可能性があります。"
+            "少し待ってから、同じ内容をもう一度送信してください。"
+        ) from exc
     except httpx.HTTPError as exc:
-        raise OllamaError(f"Ollamaへの接続に失敗しました: {exc}") from exc
+        raise OllamaError(f"Ollamaへの接続に失敗しました: {type(exc).__name__}: {exc}") from exc
     body = response.json()
     content = str((body.get("message") or {}).get("content") or "").strip()
     if not content:
