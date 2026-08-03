@@ -161,12 +161,22 @@ class ProjectSummary(BaseModel):
     updated_at: str
 
 
+class NextAction(BaseModel):
+    """画面に出す「次にやること」。利用者が魔法の呪文を推測せずに済むようにする。"""
+
+    missing: list[dict] = Field(default_factory=list)
+    advance: dict | None = None
+    stage: str = ""
+    next_stage: str | None = None
+
+
 class ProjectDetail(ProjectSummary):
     initial_idea: str
     requirements: Requirements
     messages: list[Message]
     document_markdown: str
     llm_warning: str = ""
+    next_action: NextAction = Field(default_factory=NextAction)
 
 
 def now_iso() -> str:
