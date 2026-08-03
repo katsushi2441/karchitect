@@ -199,7 +199,9 @@ def regenerate(
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
     req = parse_requirements(row)
-    save_project(owner, project_id, req, build_markdown(req), llm_warning=row["llm_warning"])
+    # 再生成が成功した時点で、前回のLLM警告は事実ではなくなる。引き継ぐと
+    # 解消済みのエラーが画面に出続ける(2026-08-03、利用者の画面に残り続けた)。
+    save_project(owner, project_id, req, build_markdown(req), llm_warning="")
     return _detail(owner, project_id)
 
 
