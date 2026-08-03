@@ -91,3 +91,39 @@ def fallback_turn(requirements: Requirements, user_message: str, warning: str) -
         next_questions=questions,
         changed_summary=["ユーザー回答をraw_notesへ保存", warning],
     )
+
+
+# 以前に確定した内容を、1回のLLMターンで失わないための保護。
+# 2026-08-03、data_entities 5件がLLMの1応答で空配列になり、利用者の
+# データモデルが設計書ごと消えた。プロンプトで「勝手に削除しない」と
+# 指示していても構造化出力では守られないことがあるため、コード側で担保する。
+PRESERVED_LIST_FIELDS = (
+    "data_entities",
+    "functional_requirements",
+    "non_functional_requirements",
+    "integrations",
+    "decisions",
+    "user_stories",
+    "target_users",
+    "in_scope",
+    "out_of_scope",
+    "constraints",
+    "assumptions",
+    "risks",
+    "raw_notes",
+)
+
+
+def preserve_existing_content(previous: Requirements, incoming: Requirements) -> Requirements:
+    """空になった項目を前回の内容で埋め戻す。
+
+    「空にする」意図的な操作と「LLMが出し忘れた」事故は区別できないが、
+    設計書を育てる製品では**失うほうが致命的**なので、埋め戻す側に倒す。
+    削除したい場合は要件JSONの手動更新(PUT /requirements)で行える。
+    """
+    for name in PRESERVED_LIST_FIELDS:
+        before = getattr(previous, name, None) or []
+        after = getattr(incoming, name, None) or []
+        if before and not after:
+            setattr(incoming, name, before)
+    return incoming

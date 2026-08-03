@@ -24,7 +24,13 @@ from .db import (
     save_project,
 )
 from .documents import build_markdown, render_html, render_pdf, requirements_json
-from .engine import bootstrap_message, completeness, fallback_turn
+from .engine import (
+    PRESERVED_LIST_FIELDS,
+    bootstrap_message,
+    completeness,
+    fallback_turn,
+    preserve_existing_content,
+)
 from .llm import OllamaError, chat_turn, health as ollama_health
 from .models import (
     MessageCreate,
@@ -184,6 +190,15 @@ async def send_message(
                 len(payload.content.strip()), warning,
             )
             turn = fallback_turn(req, payload.content.strip(), warning)
+        # LLMが出し忘れた項目で、確定済みの内容を消さない。
+        turn.requirements = preserve_existing_content(req, turn.requirements)
+        dropped = [
+            name
+            for name in PRESERVED_LIST_FIELDS
+            if (getattr(req, name, None) or []) and not (getattr(turn.requirements, name, None) or [])
+        ]
+        if dropped:  # 埋め戻し後も空なら異常。気づけるように残す
+            logger.warning("requirements sections still empty after preserve: %s", dropped)
         document = build_markdown(turn.requirements)
         save_project(owner, project_id, turn.requirements, document, llm_warning=warning)
         add_message(owner, project_id, "assistant", turn.assistant_message)
