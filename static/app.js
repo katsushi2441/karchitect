@@ -513,35 +513,45 @@ initActAs();
 // 突き止めるまで消耗した)。押せば その依頼文がそのまま送信される。
 function renderNextAction(next) {
   const box = document.querySelector("#nextAction");
+  const list = document.querySelector("#checklist");
   const body = document.querySelector("#nextActionBody");
-  if (!box || !body) return;
-  if (!next || (!(next.missing || []).length && !next.advance)) {
+  if (!box || !list || !body) return;
+  const items = (next && next.checklist) || [];
+  if (!items.length) {
     box.classList.add("hidden");
     return;
   }
   box.classList.remove("hidden");
-  const parts = [];
-  for (const item of next.missing || []) {
-    parts.push(
-      `<button class="next-chip" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)}を埋める</button>`
-    );
-  }
-  if (next.advance) {
-    parts.push(
-      `<button class="next-chip primary" data-prompt="${escapeHtml(next.advance.prompt)}">${escapeHtml(next.advance.label)}</button>`
-    );
-  }
-  if (!next.missing.length && next.next_stage === null) {
-    parts.push('<span class="next-done">設計は完成しています。設計書をダウンロードできます。</span>');
-  }
-  body.innerHTML = parts.join("");
-  body.querySelectorAll(".next-chip").forEach((button) => {
-    button.addEventListener("click", () => {
-      const input = document.querySelector("#messageInput");
-      if (!input || input.disabled) return;
-      input.value = button.dataset.prompt || "";
-      input.dispatchEvent(new Event("input"));
-      input.focus();
+
+  // 判定根拠(10項目)をそのまま出す。未達の行は押すと依頼文が入力欄に入る。
+  list.innerHTML = items.map((item) => {
+    const cls = item.done ? "done" : "todo";
+    const mark = item.done ? "✓" : "−";
+    const attr = item.done ? "" : ` data-prompt="${escapeHtml(item.prompt)}" role="button" tabindex="0"`;
+    return `<li class="check ${cls}"${attr}><span class="mark">${mark}</span>${escapeHtml(item.label)}</li>`;
+  }).join("");
+
+  const fill = (prompt) => {
+    const input = document.querySelector("#messageInput");
+    if (!input || input.disabled) return;
+    input.value = prompt || "";
+    input.dispatchEvent(new Event("input"));
+    input.focus();
+  };
+  list.querySelectorAll(".check.todo").forEach((row) => {
+    row.addEventListener("click", () => fill(row.dataset.prompt));
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fill(row.dataset.prompt); }
     });
   });
+
+  const advance = next.advance;
+  if (advance) {
+    body.innerHTML = `<button class="next-chip primary" data-prompt="${escapeHtml(advance.prompt)}">${escapeHtml(advance.label)}</button>`;
+    body.querySelector(".next-chip").addEventListener("click", (e) => fill(e.target.dataset.prompt));
+  } else if (next.next_stage === null) {
+    body.innerHTML = '<span class="next-done">設計は完成しています。設計書をダウンロードできます。</span>';
+  } else {
+    body.innerHTML = "";
+  }
 }

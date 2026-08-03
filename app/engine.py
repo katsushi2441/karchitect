@@ -143,8 +143,13 @@ NEXT_STAGE = {
 }
 
 
-def missing_items(req: Requirements) -> list[dict]:
-    """埋まっていない完成度項目を、そのまま送れる依頼文つきで返す。"""
+def checklist(req: Requirements) -> list[dict]:
+    """完成度10項目の達成状況。**画面にそのまま出す**ための一覧。
+
+    以前は未達項目だけをボタンで出していたが、完成度の中身が画面に無いため
+    「リスクと対策」というボタンだけが唐突に現れて意味が通らなかった
+    (2026-08-03の指摘)。判定根拠を先に見せる。
+    """
     items = [
         ("purpose", "目的と概要", bool(req.purpose or req.summary),
          "このシステムの目的と概要を確定してください。"),
@@ -173,10 +178,14 @@ def missing_items(req: Requirements) -> list[dict]:
          "想定されるリスクと対策を洗い出してください。"),
     ]
     return [
-        {"key": key, "label": label, "prompt": prompt}
+        {"key": key, "label": label, "done": bool(done), "prompt": prompt}
         for key, label, done, prompt in items
-        if not done
     ]
+
+
+def missing_items(req: Requirements) -> list[dict]:
+    """埋まっていない完成度項目だけ。"""
+    return [item for item in checklist(req) if not item["done"]]
 
 
 def next_action(req: Requirements) -> dict:
@@ -197,4 +206,10 @@ def next_action(req: Requirements) -> dict:
             "label": f"{nxt} に進む",
             "prompt": f"残りの項目を整理して、{nxt} 工程へ進めてください。",
         }
-    return {"missing": missing, "advance": advance, "stage": req.stage, "next_stage": nxt}
+    return {
+        "checklist": checklist(req),
+        "missing": missing,
+        "advance": advance,
+        "stage": req.stage,
+        "next_stage": nxt,
+    }

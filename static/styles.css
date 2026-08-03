@@ -226,6 +226,15 @@ body.acting-as .act-as { color: #d6453d; font-weight: 700; }
 
 .next-action { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .next-action-title { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.checklist { list-style: none; margin: 0 0 8px; padding: 0; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 0; }
+.check .mark { width: 12px; text-align: center; font-weight: 700; }
+.check.done { color: var(--muted); }
+.check.done .mark { color: var(--cyan); }
+.check.todo { color: var(--ink-soft); cursor: pointer; font-weight: 700; }
+.check.todo .mark { color: #d6453d; }
+.check.todo:hover { color: var(--cyan); }
+
 .next-chip {
   display: inline-block; margin: 0 4px 4px 0; padding: 5px 10px;
   font-size: 11px; border-radius: 999px; cursor: pointer;
