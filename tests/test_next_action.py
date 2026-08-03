@@ -59,3 +59,22 @@ def test_empty_project_lists_many_missing_items():
     action = next_action(Requirements())
     keys = [m["key"] for m in action["missing"]]
     assert "purpose" in keys and "functional_requirements" in keys
+
+
+def test_checklist_shows_all_ten_items_with_status():
+    """未達だけ出すと、判定根拠が画面に無いまま項目名だけ現れて意味が通らない。"""
+    action = next_action(_almost_done())
+    items = action["checklist"]
+    assert len(items) == 10
+    assert all("done" in i and "label" in i for i in items)
+    done = {i["key"]: i["done"] for i in items}
+    assert done["risks"] is False
+    assert done["data_entities"] is True
+    assert done["functional_requirements"] is True
+
+
+def test_checklist_and_missing_are_consistent():
+    action = next_action(_almost_done())
+    assert [i["key"] for i in action["checklist"] if not i["done"]] == [
+        i["key"] for i in action["missing"]
+    ]

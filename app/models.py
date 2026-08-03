@@ -164,6 +164,7 @@ class ProjectSummary(BaseModel):
 class NextAction(BaseModel):
     """画面に出す「次にやること」。利用者が魔法の呪文を推測せずに済むようにする。"""
 
+    checklist: list[dict] = Field(default_factory=list)
     missing: list[dict] = Field(default_factory=list)
     advance: dict | None = None
     stage: str = ""
