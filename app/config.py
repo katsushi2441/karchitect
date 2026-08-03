@@ -23,6 +23,13 @@ NUM_PREDICT = int(os.environ.get("KARCHITECT_NUM_PREDICT", "16000"))
 INTERNAL_TOKEN = os.environ.get("KARCHITECT_INTERNAL_TOKEN", "")
 DEV_USER = os.environ.get("KARCHITECT_DEV_USER", "local")
 
+# 代理操作を許す管理者。テスターの詰まりを運営側で解消できるようにする。
+ADMIN_USERS = tuple(
+    u.strip()
+    for u in (os.environ.get("KARCHITECT_ADMIN_USERS", "").strip() or "xb_bittensor").split(",")
+    if u.strip()
+)
+
 # RQDB4AI のホスト別キュー経由で Ollama(192.168.0.14) を使う設定。
 # 未設定なら OLLAMA_URL への直叩きにそのまま退避する。
 RQDB4AI_URL = os.environ.get("KARCHITECT_RQDB4AI_URL", "").strip().rstrip("/")

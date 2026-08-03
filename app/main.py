@@ -12,13 +12,14 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .config import DATA_DIR, DEFAULT_MODEL, DEV_USER, INTERNAL_TOKEN, STATIC_DIR
+from .config import ADMIN_USERS, DATA_DIR, DEFAULT_MODEL, DEV_USER, INTERNAL_TOKEN, STATIC_DIR
 from .db import (
     add_message,
     create_project,
     get_messages,
     get_project,
     init_db,
+    list_owners,
     list_projects,
     parse_requirements,
     save_project,
@@ -59,21 +60,44 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 project_locks: dict[str, asyncio.Lock] = {}
 
 
+def _valid_username(value: str) -> bool:
+    return bool(value) and len(value) <= 200 and not any(ord(char) < 32 for char in value)
+
+
+def is_admin(username: str) -> bool:
+    return username in ADMIN_USERS
+
+
 def authenticated_owner(
     x_karchitect_token: str = Header(default=""),
     x_karchitect_user: str = Header(default=""),
+    x_karchitect_act_as: str = Header(default=""),
 ) -> str:
-    if INTERNAL_TOKEN:
-        if not x_karchitect_token or not hmac.compare_digest(
-            x_karchitect_token.encode("utf-8"),
-            INTERNAL_TOKEN.encode("utf-8"),
-        ):
-            raise HTTPException(status_code=401, detail="Invalid internal token")
-        owner = x_karchitect_user.strip()
-        if not owner or len(owner) > 200 or any(ord(char) < 32 for char in owner):
-            raise HTTPException(status_code=401, detail="Authenticated user is required")
+    """操作対象のオーナー。管理者だけ X-Karchitect-Act-As で代理操作できる。
+
+    代理操作はテスターが詰まったときに運営が直接手当てするためのもの。
+    管理者以外がヘッダを付けても無視せず 403 にする（黙って自分の
+    データを操作すると、代理できたと誤解したまま作業が進む）。
+    """
+    if not INTERNAL_TOKEN:
+        return DEV_USER
+    if not x_karchitect_token or not hmac.compare_digest(
+        x_karchitect_token.encode("utf-8"),
+        INTERNAL_TOKEN.encode("utf-8"),
+    ):
+        raise HTTPException(status_code=401, detail="Invalid internal token")
+    owner = x_karchitect_user.strip()
+    if not _valid_username(owner):
+        raise HTTPException(status_code=401, detail="Authenticated user is required")
+    act_as = x_karchitect_act_as.strip()
+    if not act_as or act_as == owner:
         return owner
-    return DEV_USER
+    if not is_admin(owner):
+        raise HTTPException(status_code=403, detail="代理操作は管理者のみ利用できます")
+    if not _valid_username(act_as):
+        raise HTTPException(status_code=400, detail="代理操作の対象ユーザーが不正です")
+    logger.info("admin %s acting as %s", owner, act_as)
+    return act_as
 
 
 def _row_summary(row: dict) -> ProjectSummary:
@@ -120,6 +144,23 @@ async def health(owner: str = Depends(authenticated_owner)) -> dict:
         "ollama": ollama,
         "authenticated": bool(owner),
     }
+
+
+@app.get("/api/admin/users")
+def admin_users(
+    x_karchitect_token: str = Header(default=""),
+    x_karchitect_user: str = Header(default=""),
+) -> dict:
+    """代理操作の対象にできる利用者の一覧。管理者専用・読み取りのみ。"""
+    if INTERNAL_TOKEN:
+        if not x_karchitect_token or not hmac.compare_digest(
+            x_karchitect_token.encode("utf-8"), INTERNAL_TOKEN.encode("utf-8")
+        ):
+            raise HTTPException(status_code=401, detail="Invalid internal token")
+        requester = x_karchitect_user.strip()
+        if not is_admin(requester):
+            raise HTTPException(status_code=403, detail="管理者のみ利用できます")
+    return {"users": list_owners()}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
