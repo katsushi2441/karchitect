@@ -203,3 +203,15 @@ dialog input:focus, dialog textarea:focus { border-color:var(--cyan); box-shadow
   .composer { margin:0 12px 12px; }
   .message-body { max-width:90%; }
 }
+
+
+.char-count {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+.char-count.over {
+  color: #d6453d;
+  font-weight: 700;
+}

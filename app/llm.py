@@ -8,15 +8,12 @@ from typing import Any
 import httpx
 
 from . import rqdb4ai_client
-from .config import LLM_TIMEOUT, OLLAMA_URL
+from .config import LLM_TIMEOUT, NUM_PREDICT, OLLAMA_URL
 from .models import ChatTurnOutput, Requirements
 from .prompts import SYSTEM_PROMPT, build_turn_prompt
 
 
 logger = logging.getLogger("karchitect.llm")
-
-# 1ターンの出力上限。キュー経由でもワーカーへ同じ値を渡す。
-NUM_PREDICT = 5000
 
 
 class OllamaError(RuntimeError):

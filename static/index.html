@@ -68,7 +68,8 @@
           </div>
         </div>
         <form id="messageForm" class="composer">
-          <textarea id="messageInput" rows="3" placeholder="例：飲食店向けの予約管理システムを作りたい…" disabled></textarea>
+          <textarea id="messageInput" rows="3" maxlength="256" placeholder="例：飲食店向けの予約管理システムを作りたい…" disabled></textarea>
+          <div id="charCount" class="char-count">0 / 256</div>
           <div class="composer-foot">
             <span>Enterで送信・Shift+Enterで改行</span>
             <button id="sendButton" class="button primary" type="submit" disabled>
