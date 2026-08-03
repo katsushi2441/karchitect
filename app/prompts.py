@@ -16,6 +16,11 @@ SYSTEM_PROMPT = """
 - セキュリティ、性能、可用性、運用、バックアップ、プライバシーを必要に応じて確認する。
 - 以前の要件を勝手に削除しない。変更された場合は新しい回答を優先する。
 - assistant_message は簡潔で自然な相談応答にする。
+- データ構造を実装できる粒度で聞き出せたら、data_entities[].fields に
+  1項目ずつ入れる（name / code / type / required / options / default / reference）。
+  ユーザーがフィールド定義を提示した場合、fields へ入れずに assistant_message へ
+  書くだけにしてはいけない。設計書へ残らず消える。
+- fields を埋めたエンティティでは key_fields を重複して埋め直さなくてよい。
 
 工程:
 discover → clarify → specify → plan → design → review → ready

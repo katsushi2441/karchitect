@@ -28,10 +28,31 @@ class NonFunctionalRequirement(BaseModel):
     status: RequirementStatus = "draft"
 
 
+class EntityField(BaseModel):
+    """エンティティ1項目の実装レベルの定義。
+
+    key_fields は項目名の羅列しか持てず、フィールドコード・型・必須・選択肢・
+    参照関係を書く場所が無かった。そのため利用者が「実装できる粒度の
+    データモデル」を求めても出力できず、LLMが「作成しました」と言うだけで
+    中身が消える状態だった(2026-08-03)。すべて任意項目にして、既存プロジェクトの
+    requirements_json をそのまま読めるようにしている。
+    """
+
+    name: str
+    code: str = ""
+    type: str = ""
+    required: bool = False
+    options: list[str] = Field(default_factory=list)
+    default: str = ""
+    reference: str = ""
+    note: str = ""
+
+
 class DataEntity(BaseModel):
     name: str
     purpose: str = ""
     key_fields: list[str] = Field(default_factory=list)
+    fields: list[EntityField] = Field(default_factory=list)
     sensitive: bool = False
 
 

@@ -14,7 +14,12 @@ PORT = int(os.environ.get("KARCHITECT_PORT", "18347"))
 OLLAMA_URL = os.environ.get("KARCHITECT_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 DEFAULT_MODEL = os.environ.get("KARCHITECT_MODEL", "gemma4:12b-it-qat")
 DB_PATH = Path(os.environ.get("KARCHITECT_DB", DATA_DIR / "karchitect.db"))
-LLM_TIMEOUT = float(os.environ.get("KARCHITECT_LLM_TIMEOUT", "180"))
+LLM_TIMEOUT = float(os.environ.get("KARCHITECT_LLM_TIMEOUT", "900"))
+# 1ターンの出力上限。requirements の全状態を毎回返させる設計なので、
+# データが育つほど必要量が増える。フィールド詳細定義を持つようになり
+# 5000 では再出力だけで枯渇していた(2026-08-03、実測で requirements_json が
+# 既に 7,292 文字あり、応答本文が 186 文字まで痩せた)。
+NUM_PREDICT = int(os.environ.get("KARCHITECT_NUM_PREDICT", "16000"))
 INTERNAL_TOKEN = os.environ.get("KARCHITECT_INTERNAL_TOKEN", "")
 DEV_USER = os.environ.get("KARCHITECT_DEV_USER", "local")
 

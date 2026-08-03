@@ -27,6 +27,47 @@ def _table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join([head, separator, *body])
 
 
+def _entity_field_names(entity) -> list[str]:
+    """概要表に出す項目名。詳細定義があればそちらを、無ければ従来のkey_fieldsを使う。"""
+    if entity.fields:
+        return [field.name for field in entity.fields]
+    return list(entity.key_fields)
+
+
+def _entity_field_tables(req) -> str:
+    """エンティティごとのフィールド詳細定義。実装できる粒度で出す。
+
+    fields が空のエンティティは表を出さない（従来どおり概要表だけになる）。
+    """
+    blocks: list[str] = []
+    for entity in req.data_entities:
+        if not entity.fields:
+            continue
+        rows = [
+            [
+                field.name,
+                field.code or "—",
+                field.type or "—",
+                "必須" if field.required else "任意",
+                "<br>".join(field.options) or "—",
+                field.default or "—",
+                field.reference or "—",
+                field.note or "—",
+            ]
+            for field in entity.fields
+        ]
+        blocks.append(
+            f"#### {entity.name}\n\n"
+            + _table(
+                ["フィールド名", "フィールドコード", "型", "必須", "選択肢", "初期値", "参照先", "備考"],
+                rows,
+            )
+        )
+    if not blocks:
+        return "フィールドの詳細定義はまだありません。"
+    return "\n\n".join(blocks)
+
+
 def _safe_mermaid(value: str) -> str:
     return re.sub(r'["\[\]{}()]', "", value).strip()[:50] or "未定"
 
@@ -52,9 +93,15 @@ def build_markdown(req: Requirements) -> str:
         for item in req.open_questions
     ]
     entity_rows = [
-        [item.name, item.purpose or "—", "<br>".join(item.key_fields) or "要設計", "対象" if item.sensitive else "—"]
+        [
+            item.name,
+            item.purpose or "—",
+            "<br>".join(_entity_field_names(item)) or "要設計",
+            "対象" if item.sensitive else "—",
+        ]
         for item in req.data_entities
     ]
+    entity_detail = _entity_field_tables(req)
     decision_rows = [
         [item.id, item.topic, item.decision, item.rationale or "—", item.status]
         for item in req.decisions
@@ -159,6 +206,10 @@ flowchart LR
 
 {_table(["エンティティ", "目的", "主要フィールド", "機微情報"], entity_rows) if entity_rows else "データエンティティは未定です。"}
 
+### 7.1 フィールド定義
+
+{entity_detail}
+
 ```mermaid
 classDiagram
 {_class_diagram(req)}
@@ -225,9 +276,10 @@ def _class_diagram(req: Requirements) -> str:
     chunks = []
     for entity in req.data_entities[:12]:
         chunks.append(f"    class {_safe_mermaid(entity.name).replace(' ', '_')} {{")
-        for field in entity.key_fields[:12]:
+        names = _entity_field_names(entity)
+        for field in names[:12]:
             chunks.append(f"      +String {_safe_mermaid(field).replace(' ', '_')}")
-        if not entity.key_fields:
+        if not names:
             chunks.append("      +String id")
         chunks.append("    }")
     return "\n".join(chunks)
