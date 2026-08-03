@@ -30,6 +30,7 @@ from .engine import (
     bootstrap_message,
     completeness,
     fallback_turn,
+    next_action,
     preserve_existing_content,
 )
 from .llm import OllamaError, chat_turn, health as ollama_health
@@ -125,6 +126,7 @@ def _detail(owner: str, project_id: str) -> ProjectDetail:
         messages=get_messages(owner, project_id),
         document_markdown=row["document_markdown"],
         llm_warning=row["llm_warning"],
+        next_action=next_action(req),
     )
 
 

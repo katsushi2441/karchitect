@@ -127,3 +127,74 @@ def preserve_existing_content(previous: Requirements, incoming: Requirements) ->
         if before and not after:
             setattr(incoming, name, before)
     return incoming
+
+
+# 完成度10項目のうち何が欠けているか。利用者は「何を言えば進むのか」を
+# 知らない。2026-08-03、テスターが自力で製品の限界を突き止めるまで3往復
+# 消耗した。次の一手を画面から提示するための材料をここで作る。
+NEXT_STAGE = {
+    "discover": "clarify",
+    "clarify": "specify",
+    "specify": "plan",
+    "plan": "design",
+    "design": "review",
+    "review": "ready",
+    "ready": None,
+}
+
+
+def missing_items(req: Requirements) -> list[dict]:
+    """埋まっていない完成度項目を、そのまま送れる依頼文つきで返す。"""
+    items = [
+        ("purpose", "目的と概要", bool(req.purpose or req.summary),
+         "このシステムの目的と概要を確定してください。"),
+        ("target_users", "対象利用者", bool(req.target_users),
+         "対象となる利用者を確定してください。"),
+        ("in_scope", "対象範囲", bool(req.in_scope),
+         "今回の対象範囲を確定してください。"),
+        ("functional_requirements", "機能要件", bool(req.functional_requirements),
+         "主要な機能要件を整理してください。"),
+        ("acceptance_criteria", "受入条件",
+         any(r.acceptance_criteria for r in req.functional_requirements),
+         "各機能要件に検証可能な受入条件を付けてください。"),
+        ("non_functional_requirements", "非機能要件", bool(req.non_functional_requirements),
+         "性能・可用性・セキュリティなどの非機能要件を整理してください。"),
+        ("data_entities", "データ設計", bool(req.data_entities),
+         "データエンティティを整理してください。"),
+        ("architecture", "システム構成",
+         bool(req.architecture.backend or req.architecture.style),
+         "システム構成（構成方式・基盤）を確定してください。"),
+        ("blocking", "未決事項の解消",
+         bool(req.functional_requirements) and not any(
+             q.status == "open" and q.importance == "blocking" for q in req.open_questions
+         ),
+         "blockingな未決事項を解消してください。"),
+        ("risks", "リスクと対策", bool(req.risks),
+         "想定されるリスクと対策を洗い出してください。"),
+    ]
+    return [
+        {"key": key, "label": label, "prompt": prompt}
+        for key, label, done, prompt in items
+        if not done
+    ]
+
+
+def next_action(req: Requirements) -> dict:
+    """画面に出す「次にやること」。工程を進める操作も文言つきで返す。"""
+    missing = missing_items(req)
+    nxt = NEXT_STAGE.get(req.stage)
+    advance = None
+    if nxt and not missing:
+        advance = {
+            "stage": nxt,
+            "label": f"{nxt} に進む",
+            "prompt": f"要件は出揃いました。{nxt} 工程へ進めてください。",
+        }
+    elif nxt and len(missing) <= 2:
+        # 残りわずかなら、埋めつつ次工程へ進む提案も出す
+        advance = {
+            "stage": nxt,
+            "label": f"{nxt} に進む",
+            "prompt": f"残りの項目を整理して、{nxt} 工程へ進めてください。",
+        }
+    return {"missing": missing, "advance": advance, "stage": req.stage, "next_stage": nxt}

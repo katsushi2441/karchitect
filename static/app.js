@@ -104,6 +104,7 @@ function renderCurrent() {
   $("#progressValue").textContent = `${project.completeness}%`;
   $("#progressBar").style.width = `${project.completeness}%`;
   renderStages(project.stage);
+  renderNextAction(project.next_action);
   renderMessages(project.messages);
   renderRequirements(project.requirements);
   renderQuestions(project.requirements.open_questions || []);
@@ -505,3 +506,42 @@ async function initActAs() {
   }
 }
 initActAs();
+
+
+// 「次にやること」をボタンで出す。利用者が「レビューに進んでください」という
+// 言い方を推測できるはずがない(2026-08-03、テスターが自力で製品の限界を
+// 突き止めるまで消耗した)。押せば その依頼文がそのまま送信される。
+function renderNextAction(next) {
+  const box = document.querySelector("#nextAction");
+  const body = document.querySelector("#nextActionBody");
+  if (!box || !body) return;
+  if (!next || (!(next.missing || []).length && !next.advance)) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  const parts = [];
+  for (const item of next.missing || []) {
+    parts.push(
+      `<button class="next-chip" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)}を埋める</button>`
+    );
+  }
+  if (next.advance) {
+    parts.push(
+      `<button class="next-chip primary" data-prompt="${escapeHtml(next.advance.prompt)}">${escapeHtml(next.advance.label)}</button>`
+    );
+  }
+  if (!next.missing.length && next.next_stage === null) {
+    parts.push('<span class="next-done">設計は完成しています。設計書をダウンロードできます。</span>');
+  }
+  body.innerHTML = parts.join("");
+  body.querySelectorAll(".next-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = document.querySelector("#messageInput");
+      if (!input || input.disabled) return;
+      input.value = button.dataset.prompt || "";
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    });
+  });
+}
