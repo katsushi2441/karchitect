@@ -1,18 +1,33 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 import httpx
 
+from . import rqdb4ai_client
 from .config import LLM_TIMEOUT, OLLAMA_URL
 from .models import ChatTurnOutput, Requirements
 from .prompts import SYSTEM_PROMPT, build_turn_prompt
 
 
+logger = logging.getLogger("karchitect.llm")
+
+# 1ターンの出力上限。キュー経由でもワーカーへ同じ値を渡す。
+NUM_PREDICT = 5000
+
+
 class OllamaError(RuntimeError):
     pass
+
+
+def _build_output(content: str, requirements: Requirements) -> ChatTurnOutput:
+    """LLMの生応答を ChatTurnOutput にする。直叩きとキュー経由で共通。"""
+    result = ChatTurnOutput.model_validate(_parse_json_content(content))
+    result.requirements.revision = requirements.revision + 1
+    return result
 
 
 def _parse_json_content(content: str) -> dict[str, Any]:
@@ -35,19 +50,38 @@ async def chat_turn(
     user_message: str,
 ) -> ChatTurnOutput:
     prompt = build_turn_prompt(requirements.model_dump_json(indent=2), history, user_message)
+    schema = ChatTurnOutput.model_json_schema()
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    # RQDB4AI のキューが設定されていればそちらを優先する。直叩き(0.3)は
+    # kcbrain / kfreqaihl と GPU を奪い合い、混雑時に応答が返らなくなる。
+    if rqdb4ai_client.configured():
+        try:
+            content, job_id = await rqdb4ai_client.run_ollama_chat(
+                messages, model, schema, NUM_PREDICT
+            )
+            logger.info("LLM turn via RQDB4AI queue (job=%s)", job_id)
+            return _build_output(content, requirements)
+        except Exception as exc:
+            # キューが落ちていても対話は続けたい。直叩きへ退避する。
+            logger.warning(
+                "RQDB4AI queue unavailable, falling back to direct Ollama: %s: %s",
+                type(exc).__name__, str(exc)[:200],
+            )
+
     payload = {
         "model": model,
         "stream": False,
         "think": False,
-        "format": ChatTurnOutput.model_json_schema(),
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
+        "format": schema,
+        "messages": messages,
         "options": {
             "temperature": 0.2,
             "top_p": 0.9,
-            "num_predict": 5000,
+            "num_predict": NUM_PREDICT,
         },
     }
     try:
@@ -72,9 +106,7 @@ async def chat_turn(
         raise OllamaError(
             f"Gemmaから空の応答が返りました（done_reason={body.get('done_reason', 'unknown')}）"
         )
-    result = ChatTurnOutput.model_validate(_parse_json_content(content))
-    result.requirements.revision = requirements.revision + 1
-    return result
+    return _build_output(content, requirements)
 
 
 async def health() -> dict[str, Any]:

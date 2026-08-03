@@ -6,3 +6,4 @@ python-multipart==0.0.20
 Markdown==3.8
 weasyprint==65.1
 
+requests>=2.28,<3
