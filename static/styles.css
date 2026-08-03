@@ -215,3 +215,10 @@ dialog input:focus, dialog textarea:focus { border-color:var(--cyan); box-shadow
   color: #d6453d;
   font-weight: 700;
 }
+
+
+.act-as { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.act-as select { font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); }
+/* 代理操作中は他人のデータを触っていることが一目で分かるようにする */
+body.acting-as .topbar { box-shadow: inset 0 -3px 0 #d6453d; }
+body.acting-as .act-as { color: #d6453d; font-weight: 700; }

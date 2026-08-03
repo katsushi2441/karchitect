@@ -179,3 +179,24 @@ def get_messages(owner: str, project_id: str, limit: int = 100) -> list[Message]
 
 def parse_requirements(project: dict) -> Requirements:
     return Requirements.model_validate(json.loads(project["requirements_json"]))
+
+
+def list_owners() -> list[dict]:
+    """代理操作の対象にできる利用者。プロジェクト数と最終更新を添える。"""
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT owner, COUNT(*) AS projects, MAX(updated_at) AS last_updated
+            FROM projects
+            GROUP BY owner
+            ORDER BY MAX(updated_at) DESC
+            """
+        ).fetchall()
+    return [
+        {
+            "username": row["owner"],
+            "projects": row["projects"],
+            "last_updated": row["last_updated"],
+        }
+        for row in rows
+    ]

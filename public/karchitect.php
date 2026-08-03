@@ -18,6 +18,17 @@ if (isset($_GET['logout'])) {
 $auth = url2ai_auth_bootstrap();
 $logged_in = !empty($auth['logged_in']);
 $session_user = $logged_in ? trim((string)$auth['session_user']) : '';
+// 管理者は利用者を選んで代理操作できる（テスターが詰まったときの手当て用）。
+$KAR_ADMIN_USERS = array('xb_bittensor');
+$is_admin = ($session_user !== '' && in_array($session_user, $KAR_ADMIN_USERS, true));
+$act_as = '';
+if ($is_admin && isset($_GET['as'])) {
+    $candidate = trim((string)$_GET['as']);
+    // 管理者以外は $act_as を空のままにする。ヘッダはバックエンドでも検証される。
+    if ($candidate !== '' && preg_match('/^[A-Za-z0-9_]{1,200}$/', $candidate)) {
+        $act_as = $candidate;
+    }
+}
 if (empty($_SESSION['karchitect_csrf'])) {
     $_SESSION['karchitect_csrf'] = bin2hex(random_bytes(24));
 }
@@ -47,6 +58,9 @@ function kar_route($path, $method) {
         return true;
     }
     if ($path === '/api/projects' && in_array($method, array('GET', 'POST'), true)) {
+        return true;
+    }
+    if ($path === '/api/admin/users' && $method === 'GET') {
         return true;
     }
     if (preg_match('#^/api/projects/[a-f0-9]{12}$#', $path)) {
@@ -91,6 +105,9 @@ function kar_proxy($method, $path, $user, $consume_credit_user = null) {
         'X-KArchitect-Token: ' . KARCHITECT_API_TOKEN,
         'X-KArchitect-User: ' . $user,
     );
+    if (isset($GLOBALS['act_as']) && $GLOBALS['act_as'] !== '') {
+        $headers[] = 'X-KArchitect-Act-As: ' . $GLOBALS['act_as'];
+    }
     $ch = curl_init(rtrim(KARCHITECT_API_BASE, '/') . $path);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
@@ -427,7 +444,7 @@ $html = str_replace('/static/styles.css', 'assets/karchitect.css', $html);
 $html = str_replace('/static/app.js', 'assets/karchitect.js', $html);
 $runtime = '<script>'
     . 'window.KARCHITECT_GATEWAY=' . json_encode($THIS_FILE, JSON_UNESCAPED_SLASHES) . ';'
-    . 'window.KARCHITECT_CSRF=' . json_encode($csrf, JSON_UNESCAPED_SLASHES) . ';'
+    . 'window.KARCHITECT_IS_ADMIN=' . ($is_admin ? 'true' : 'false') . ';window.KARCHITECT_ACT_AS=' . json_encode($act_as) . ';window.KARCHITECT_CSRF=' . json_encode($csrf, JSON_UNESCAPED_SLASHES) . ';'
     . 'window.addEventListener("DOMContentLoaded",function(){'
     . 'var u=document.getElementById("authenticatedUser");if(u){u.textContent="@"+'
     . json_encode($session_user, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)

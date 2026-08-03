@@ -18,7 +18,12 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({
 
 function apiUrl(path) {
   const gateway = window.KARCHITECT_GATEWAY || "";
-  return gateway ? `${gateway}?api=${encodeURIComponent(path)}` : path;
+  // 管理者が代理操作中は as を全リクエストに付ける。PHP側で管理者判定し、
+  // バックエンドでも再検証する（画面だけの制御にはしない）。
+  const as = window.KARCHITECT_ACT_AS || "";
+  if (!gateway) return path;
+  const base = `${gateway}?api=${encodeURIComponent(path)}`;
+  return as ? `${base}&as=${encodeURIComponent(as)}` : base;
 }
 
 async function api(path, options = {}) {
@@ -468,3 +473,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   input.addEventListener("input", update);
   update();
 })();
+
+
+// 管理者向け: 代理操作するユーザーを選ぶ。テスターが詰まったときに運営が手当てする用途。
+async function initActAs() {
+  if (!window.KARCHITECT_IS_ADMIN) return;
+  const box = document.querySelector("#actAsBox");
+  const select = document.querySelector("#actAsSelect");
+  if (!box || !select) return;
+  box.classList.remove("hidden");
+  try {
+    const data = await api("/api/admin/users");
+    for (const user of data.users || []) {
+      const option = document.createElement("option");
+      option.value = user.username;
+      option.textContent = `${user.username}（${user.projects}件）`;
+      select.appendChild(option);
+    }
+  } catch (_) {
+    // 一覧が取れなくても自分の操作は続けられる
+  }
+  select.value = window.KARCHITECT_ACT_AS || "";
+  select.addEventListener("change", () => {
+    const url = new URL(window.location.href);
+    if (select.value) url.searchParams.set("as", select.value);
+    else url.searchParams.delete("as");
+    window.location.href = url.toString();
+  });
+  if (window.KARCHITECT_ACT_AS) {
+    document.body.classList.add("acting-as");
+  }
+}
+initActAs();
