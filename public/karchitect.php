@@ -427,7 +427,7 @@ footer a{color:var(--indigo)}
     <span class="cta-note">誰でも利用できます。1個目のプロジェクトは無料です。</span>
   </section>
 </main>
-<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a> ・ <a href="https://kurage.exbridge.jp/tokusho.php">特定商取引法に基づく表記</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。</footer>
+<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a> ・ <a href="https://kurage.exbridge.jp/vibe-prototype.html">設計書からプロトタイプを作る（バイブプロトタイプ制作）</a> ・ <a href="https://kurage.exbridge.jp/tokusho.php">特定商取引法に基づく表記</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。</footer>
 </body></html>
 <?php
     exit;
