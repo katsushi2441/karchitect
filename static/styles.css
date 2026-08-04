@@ -243,3 +243,15 @@ body.acting-as .act-as { color: #d6453d; font-weight: 700; }
 .next-chip:hover { border-color: var(--cyan); color: var(--cyan); }
 .next-chip.primary { border-color: var(--cyan); color: #fff; background: linear-gradient(135deg, var(--cyan), var(--indigo)); }
 .next-done { font-size: 11px; color: var(--cyan); font-weight: 700; }
+
+/* 入力前の注意。生成物をOSS扱いにするため、秘匿情報を入れさせない。 */
+.input-caution {
+  background: var(--warning-bg);
+  border: 1px solid #f1d8a5;
+  color: var(--warning);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  margin: 4px 0 0;
+}
