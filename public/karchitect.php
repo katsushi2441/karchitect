@@ -427,7 +427,7 @@ footer a{color:var(--indigo)}
     <span class="cta-note">誰でも利用できます。1個目のプロジェクトは無料です。</span>
   </section>
 </main>
-<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a> ・ <a href="https://kurage.exbridge.jp/vibe-prototype.html">設計書からプロトタイプを作る（バイブプロトタイプ制作）</a> ・ <a href="https://kurage.exbridge.jp/tokusho.php">特定商取引法に基づく表記</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。<br>生成した設計書は<b>自由にお使いいただけます</b>（改変・再配布・商用利用可。当社も同じ設計書を利用します＝オープンソースと同じ考え方）。お客様の非公開の事業情報を当社が再配布することはありません。詳細は<a href="https://kurage.exbridge.jp/terms.html">利用規約</a>をご覧ください。</footer>
+<footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a> ・ <a href="https://kurage.exbridge.jp/vibe-prototype.html">設計書からプロトタイプを作る（バイブプロトタイプ制作）</a> ・ <a href="https://kurage.exbridge.jp/tokusho.php">特定商取引法に基づく表記</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。<br>生成した設計書は<b>オープンソースと同じ扱い</b>です（改変・再配布・商用利用可。当社も自由に利用・公開します）。<b>公開されては困る情報は入力しないでください。</b>詳細は<a href="https://kurage.exbridge.jp/terms.html">利用規約</a>をご覧ください。</footer>
 </body></html>
 <?php
     exit;
