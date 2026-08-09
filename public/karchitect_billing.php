@@ -157,6 +157,8 @@ function kar_rpc($method, $params) {
         CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body,
         CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
         CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+        // Cloudflare(error 1010)がUA無しを弾くことがあるため明示
+        CURLOPT_USERAGENT => 'karchitect/1.0 (+https://karchitect.exbridge.jp/)',
     ));
     $res = curl_exec($ch);
     curl_close($ch);
@@ -191,9 +193,15 @@ function kar_bill_grant_urlai($user, $wallet, $price_urlai = KAR_PRICE_URLAI, $f
     $topic0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
     $d = kar_bill_load();
     $found = array();  // txkey => amount
-    for ($i = 0; $i < 8; $i++) {  // 5万block×8 ≒ 9日分
-        $to = $latest - $i * 50000;
-        $from = max(0, $to - 49999);
+    // mainnet.base.org が eth_getLogs を10,000ブロック範囲に制限(2026-08実測。
+    // 従来の50,000一括は HTTP 413 で全滅)。1万block×40 ≒ 9日分を新しい順に走査し、
+    // 1クレジットぶん見つかったら早期終了(heteml PHPの実行時間対策。古い未使用txは
+    // 次のクリックで拾われる)
+    $started = time();
+    for ($i = 0; $i < 40; $i++) {
+        $to = $latest - $i * 10000;
+        if ($to < 0) { break; }
+        $from = max(0, $to - 9999);
         $logs = kar_rpc('eth_getLogs', array(array(
             'address' => KAR_URLAI_CONTRACT,
             'topics' => array($topic0, kar_topic_addr($wallet), kar_topic_addr(KAR_URLAI_RECEIVER)),
@@ -206,6 +214,8 @@ function kar_bill_grant_urlai($user, $wallet, $price_urlai = KAR_PRICE_URLAI, $f
                 $found[$key] = kar_hex_to_tokens($lg['data'] ?? '0x0');
             }
         }
+        if (array_sum($found) >= $price_urlai) { break; }
+        if (time() - $started > 20) { break; }
     }
     $total = array_sum($found);
     $credits = (int)floor($total / $price_urlai);
