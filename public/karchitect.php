@@ -198,7 +198,8 @@ if (isset($_GET['api'])) {
         header('Cache-Control: no-store, max-age=0');
         echo json_encode(array(
             'projects' => $count,
-            'first_free' => ($count === 0),
+            'free_user' => kar_bill_is_free_user($session_user),
+            'first_free' => ($count === 0 || kar_bill_is_free_user($session_user)),
             'credits' => kar_bill_credits($session_user),
             'price_jpy' => KAR_PRICE_JPY,
             'price_urlai' => KAR_PRICE_URLAI,
@@ -238,6 +239,9 @@ if (isset($_GET['api'])) {
     // 画面内プレビュー(document.html)は無料のまま(アプリ表示に必須のため対象外)。
     if (preg_match('#^/api/projects/[a-f0-9]{12}/(document\.(md|pdf)|requirements\.json|mermaid/(architecture|class|sequence))$#', $path)
             && $method === 'GET') {
+        if (kar_bill_is_free_user($session_user)) {
+            kar_proxy($method, $path, $session_user);   // 無料利用ユーザーは出力課金なし(カウントもしない)
+        }
         $gate = kar_bill_export_gate($session_user);
         if ($gate === 'need_payment') {
             kar_error(402, 'EXPORT_PAYMENT_REQUIRED');
@@ -249,7 +253,7 @@ if (isset($_GET['api'])) {
         if ($st !== 200 || !is_array($projects)) {
             kar_error(502, 'Kurage Architect APIへ接続できません');
         }
-        $needs_credit = count($projects) >= 1;  // 1個目は無料
+        $needs_credit = count($projects) >= 1 && !kar_bill_is_free_user($session_user);  // 1個目は無料・無料利用ユーザーは常に無料
         if ($needs_credit && kar_bill_credits($session_user) < 1) {
             kar_error(402, 'PAYMENT_REQUIRED');
         }

@@ -11,6 +11,16 @@
 
 define('KAR_PRICE_JPY', 500);
 define('KAR_PRICE_URLAI', 50000);
+// 無料利用ユーザー(運営・協力テスター): プロジェクト作成/設計書出力の課金ゲートを通らない。
+// AIはもともと全ユーザー共通でローカルOllama(gemma4)なので、この免除は支払いのみに効く。
+define('KAR_FREE_USERS', 'xb_bittensor,uchinai_offcial');
+function kar_bill_is_free_user($user) {
+    foreach (explode(',', KAR_FREE_USERS) as $u) {
+        $u = trim($u);
+        if ($u !== '' && strcasecmp($u, (string)$user) === 0) { return true; }
+    }
+    return false;
+}
 // 設計書出力(ダウンロード): 1回目無料、2回目から都度100円 or 10,000 URLAI(統一レート0.01円/URLAI)
 define('KAR_EXPORT_PRICE_JPY', 100);
 define('KAR_EXPORT_PRICE_URLAI', 10000);
