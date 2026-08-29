@@ -14,6 +14,7 @@ from .engine import apply_requirements_patch
 from .models import ChatTurnDelta, ChatTurnOutput, Requirements
 from .policies import design_policy_context
 from .prompts import SYSTEM_PROMPT, build_turn_prompt
+from .response_quality import normalize_assistant_message
 
 
 logger = logging.getLogger("karchitect.llm")
@@ -25,9 +26,16 @@ class OllamaError(RuntimeError):
 
 def _build_output(content: str, requirements: Requirements) -> ChatTurnOutput:
     """LLMの生応答を ChatTurnOutput にする。直叩きとキュー経由で共通。"""
-    delta = ChatTurnDelta.model_validate(_parse_json_content(content))
+    parsed = _parse_json_content(content)
+    # Gemmaが複数質問を返しても、再生成やフォールバックへ落とさず先頭1問に絞る。
+    if isinstance(parsed.get("next_questions"), list):
+        parsed["next_questions"] = parsed["next_questions"][:1]
+    delta = ChatTurnDelta.model_validate(parsed)
     return ChatTurnOutput(
-        assistant_message=delta.assistant_message,
+        assistant_message=normalize_assistant_message(
+            delta.assistant_message,
+            delta.next_questions,
+        ),
         requirements=apply_requirements_patch(requirements, delta.patch),
         next_questions=delta.next_questions,
         changed_summary=delta.changed_summary,

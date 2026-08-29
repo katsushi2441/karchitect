@@ -33,6 +33,7 @@ from .engine import (
     next_action,
     preserve_existing_content,
 )
+from .input_guard import append_raw_note, classify_user_input, completion_body
 from .llm import OllamaError, chat_turn, health as ollama_health
 from .models import (
     MessageCreate,
@@ -220,10 +221,31 @@ async def send_message(
         req = parse_requirements(row)
         history_models = get_messages(owner, project_id, limit=30)
         history = [{"role": message.role, "content": message.content} for message in history_models]
-        add_message(owner, project_id, "user", payload.content.strip())
+        content = payload.content.strip()
+        decision = classify_user_input(content, req, history_models)
+        add_message(owner, project_id, "user", content)
+
+        if decision.action == "save_only":
+            updated = append_raw_note(req, content)
+            save_project(owner, project_id, updated, build_markdown(updated), llm_warning="")
+            add_message(owner, project_id, "assistant", decision.response)
+            logger.info("LLM skipped for continuation: owner=%s project=%s", owner, project_id)
+            return _detail(owner, project_id)
+
+        if decision.action in {"reject", "duplicate"}:
+            add_message(owner, project_id, "assistant", decision.response)
+            logger.info(
+                "LLM skipped for %s input: owner=%s project=%s",
+                decision.action, owner, project_id,
+            )
+            return _detail(owner, project_id)
+
+        body = completion_body(content)
+        if body:
+            req = append_raw_note(req, body)
         warning = ""
         try:
-            turn = await chat_turn(row["model"], req, history, payload.content.strip())
+            turn = await chat_turn(row["model"], req, history, content)
         except (OllamaError, ValueError, json.JSONDecodeError) as exc:
             warning = str(exc)
             # ログに残さないと障害に気づけない。2026-08-03にLLMタイムアウトで
@@ -232,9 +254,9 @@ async def send_message(
             logger.warning(
                 "LLM turn failed: owner=%s project=%s model=%s history=%d 文字数=%d: %s",
                 owner, project_id, row["model"], len(history),
-                len(payload.content.strip()), warning,
+                len(content), warning,
             )
-            turn = fallback_turn(req, payload.content.strip(), warning)
+            turn = fallback_turn(req, content, warning)
         # LLMが出し忘れた項目で、確定済みの内容を消さない。
         turn.requirements = preserve_existing_content(req, turn.requirements)
         dropped = [

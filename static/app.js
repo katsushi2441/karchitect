@@ -205,6 +205,7 @@ function setExportLinks(id) {
 function setBusy(busy) {
   state.busy = busy;
   $("#sendButton").disabled = busy || !state.current;
+  $("#completeInputButton").disabled = busy || !state.current;
   $("#messageInput").disabled = busy || !state.current;
   if (busy) {
     $("#messages").insertAdjacentHTML("beforeend", `<div id="typing" class="message assistant"><div class="message-avatar"><img src="images/kurage_avatar_face.webp" alt="Kurage"></div><div class="typing"><i></i><i></i><i></i></div></div>`);
@@ -451,6 +452,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   $("#messageForm").addEventListener("submit", submitMessage);
+  $("#completeInputButton").addEventListener("click", () => {
+    const input = $("#messageInput");
+    const current = input.value.trim();
+    const content = current ? `${current}\n入力完了` : "入力完了";
+    if (content.length > MESSAGE_MAX) {
+      alert(`入力内容を先に「相談する」で保存してから、入力完了・解析を押してください。`);
+      return;
+    }
+    input.value = content;
+    $("#messageForm").requestSubmit();
+  });
   $("#messageInput").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();

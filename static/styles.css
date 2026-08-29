@@ -98,6 +98,7 @@ h1, h2, h3, p { margin-top:0; }
 .warning { display:grid; gap:4px; max-height:150px; margin:12px 22px 0; padding:10px 12px; overflow-y:auto; border:1px solid #f1d8a5; border-radius:10px; color:var(--warning); background:var(--warning-bg); font-size:11px; }
 .warning strong { margin-top:4px; font-size:11px; }
 .warning span { line-height:1.55; }
+.composer-actions { display:flex; align-items:center; gap:8px; }
 .messages { min-height:0; padding:22px; overflow-y:auto; scroll-behavior:smooth; }
 .empty-chat { max-width:330px; margin:90px auto; text-align:center; }
 .empty-chat h3 { margin:20px 0 8px; font-size:17px; font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif; font-weight:900; }

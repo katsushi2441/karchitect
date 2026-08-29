@@ -80,9 +80,12 @@
           <div id="charCount" class="char-count">0 / 256</div>
           <div class="composer-foot">
             <span>Enterで送信・Shift+Enterで改行</span>
-            <button id="sendButton" class="button primary" type="submit" disabled>
-              <span>相談する</span><b aria-hidden="true">→</b>
-            </button>
+            <div class="composer-actions">
+              <button id="completeInputButton" class="button secondary" type="button" disabled>入力完了・解析</button>
+              <button id="sendButton" class="button primary" type="submit" disabled>
+                <span>相談する</span><b aria-hidden="true">→</b>
+              </button>
+            </div>
           </div>
         </form>
       </section>

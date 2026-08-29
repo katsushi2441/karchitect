@@ -103,9 +103,7 @@ def bootstrap_message(requirements: Requirements) -> str:
     )
     return (
         f"{intro}\n\n"
-        "まず、次の点を教えてください。\n"
-        "1. このシステムで、誰のどんな問題を解決したいですか？\n"
-        "2. 最初のリリースで必ず必要な機能は何ですか？"
+        "まず、このシステムで、誰のどんな問題を解決したいですか？"
     )
 
 
@@ -119,7 +117,7 @@ def fallback_turn(requirements: Requirements, user_message: str, warning: str) -
         value = getattr(updated, field)
         if not value:
             questions.append(question)
-        if len(questions) == 2:
+        if len(questions) == 1:
             break
     if not questions:
         questions = ["この要望の受入条件を、利用者が確認できる形で教えてください。"]

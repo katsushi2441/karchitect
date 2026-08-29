@@ -168,14 +168,14 @@ class ChatTurnDelta(BaseModel):
 
     assistant_message: str = Field(min_length=1, max_length=1200)
     patch: RequirementsPatch = Field(default_factory=RequirementsPatch)
-    next_questions: list[str] = Field(default_factory=list, max_length=3)
+    next_questions: list[str] = Field(default_factory=list, max_length=1)
     changed_summary: list[str] = Field(default_factory=list)
 
 
 class ChatTurnOutput(BaseModel):
     assistant_message: str
     requirements: Requirements
-    next_questions: list[str] = Field(default_factory=list, max_length=3)
+    next_questions: list[str] = Field(default_factory=list, max_length=1)
     changed_summary: list[str] = Field(default_factory=list)
 
 
