@@ -122,6 +122,56 @@ class Requirements(BaseModel):
     revision: int = 1
 
 
+class ArchitecturePatch(BaseModel):
+    """LLMが変更した構成項目だけを返すための差分。"""
+
+    style: str | None = None
+    frontend: str | None = None
+    backend: str | None = None
+    database: str | None = None
+    infrastructure: str | None = None
+    authentication: str | None = None
+
+
+class RequirementsPatch(BaseModel):
+    """1ターンで変更した要件だけを受け取る。
+
+    リスト項目を変更する場合だけ、その項目の更新後の全内容を返させる。
+    None は変更なしを意味し、既存要件を誤って消さない。
+    """
+
+    project_name: str | None = None
+    summary: str | None = None
+    purpose: str | None = None
+    background: str | None = None
+    target_users: list[str] | None = None
+    stakeholders: list[str] | None = None
+    user_stories: list[str] | None = None
+    in_scope: list[str] | None = None
+    out_of_scope: list[str] | None = None
+    functional_requirements: list[FunctionalRequirement] | None = None
+    non_functional_requirements: list[NonFunctionalRequirement] | None = None
+    data_entities: list[DataEntity] | None = None
+    integrations: list[Integration] | None = None
+    constraints: list[str] | None = None
+    assumptions: list[str] | None = None
+    decisions: list[Decision] | None = None
+    open_questions: list[OpenQuestion] | None = None
+    risks: list[Risk] | None = None
+    architecture: ArchitecturePatch | None = None
+    raw_notes_append: list[str] = Field(default_factory=list)
+    stage: Stage | None = None
+
+
+class ChatTurnDelta(BaseModel):
+    """LLM専用の短い応答。完全なRequirementsはPython側で組み立てる。"""
+
+    assistant_message: str = Field(min_length=1, max_length=1200)
+    patch: RequirementsPatch = Field(default_factory=RequirementsPatch)
+    next_questions: list[str] = Field(default_factory=list, max_length=3)
+    changed_summary: list[str] = Field(default_factory=list)
+
+
 class ChatTurnOutput(BaseModel):
     assistant_message: str
     requirements: Requirements
@@ -182,4 +232,3 @@ class ProjectDetail(ProjectSummary):
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
-

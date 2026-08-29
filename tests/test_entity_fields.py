@@ -98,9 +98,9 @@ def test_class_diagram_uses_detailed_fields():
 
 def test_schema_exposes_field_definition_to_the_llm():
     """LLMに渡すJSON Schemaに fields が含まれないと、そもそも埋められない。"""
-    from app.models import ChatTurnOutput
+    from app.models import ChatTurnDelta
 
-    schema = json.dumps(ChatTurnOutput.model_json_schema(), ensure_ascii=False)
+    schema = json.dumps(ChatTurnDelta.model_json_schema(), ensure_ascii=False)
     assert "EntityField" in schema
     for key in ("code", "required", "options", "reference"):
         assert f'"{key}"' in schema

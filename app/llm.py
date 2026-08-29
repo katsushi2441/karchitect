@@ -10,7 +10,8 @@ from pydantic_core import from_json
 
 from . import rqdb4ai_client
 from .config import LLM_TIMEOUT, NUM_PREDICT, OLLAMA_URL
-from .models import ChatTurnOutput, Requirements
+from .engine import apply_requirements_patch
+from .models import ChatTurnDelta, ChatTurnOutput, Requirements
 from .prompts import SYSTEM_PROMPT, build_turn_prompt
 
 
@@ -23,9 +24,13 @@ class OllamaError(RuntimeError):
 
 def _build_output(content: str, requirements: Requirements) -> ChatTurnOutput:
     """LLMの生応答を ChatTurnOutput にする。直叩きとキュー経由で共通。"""
-    result = ChatTurnOutput.model_validate(_parse_json_content(content))
-    result.requirements.revision = requirements.revision + 1
-    return result
+    delta = ChatTurnDelta.model_validate(_parse_json_content(content))
+    return ChatTurnOutput(
+        assistant_message=delta.assistant_message,
+        requirements=apply_requirements_patch(requirements, delta.patch),
+        next_questions=delta.next_questions,
+        changed_summary=delta.changed_summary,
+    )
 
 
 def _parse_json_content(content: str) -> dict[str, Any]:
@@ -57,7 +62,7 @@ def _parse_json_content(content: str) -> dict[str, Any]:
             partial = from_json(candidate, allow_partial=True)
         except ValueError as partial_exc:
             raise OllamaError(f"GemmaのJSON応答を解析できません: {exc}") from partial_exc
-        if not isinstance(partial, dict) or not {"assistant_message", "requirements"}.issubset(partial):
+        if not isinstance(partial, dict) or not {"assistant_message", "patch"}.issubset(partial):
             raise OllamaError(f"GemmaのJSON応答を解析できません: {exc}") from exc
         logger.warning(
             "Recovered truncated Gemma JSON at position %d/%d",
@@ -75,7 +80,7 @@ async def chat_turn(
     user_message: str,
 ) -> ChatTurnOutput:
     prompt = build_turn_prompt(requirements.model_dump_json(indent=2), history, user_message)
-    schema = ChatTurnOutput.model_json_schema()
+    schema = ChatTurnDelta.model_json_schema()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": prompt},

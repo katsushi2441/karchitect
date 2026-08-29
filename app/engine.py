@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .models import ChatTurnOutput, OpenQuestion, Requirements
+from .models import ChatTurnOutput, OpenQuestion, Requirements, RequirementsPatch
 
 
 DISCOVERY_QUESTIONS = [
@@ -9,6 +9,59 @@ DISCOVERY_QUESTIONS = [
     ("in_scope", "最初のリリースで必ず実現したい機能は何ですか？"),
     ("constraints", "期限、予算、既存システム、利用必須の技術などの制約はありますか？"),
 ]
+
+
+PATCH_SCALAR_FIELDS = ("project_name", "summary", "purpose", "background")
+PATCH_LIST_FIELDS = (
+    "target_users",
+    "stakeholders",
+    "user_stories",
+    "in_scope",
+    "out_of_scope",
+    "functional_requirements",
+    "non_functional_requirements",
+    "data_entities",
+    "integrations",
+    "constraints",
+    "assumptions",
+    "decisions",
+    "open_questions",
+    "risks",
+)
+
+
+def apply_requirements_patch(previous: Requirements, patch: RequirementsPatch) -> Requirements:
+    """LLMの差分だけを既存要件へ安全に反映する。
+
+    空文字・空配列で既存内容を消す操作は受け付けない。意図的な削除は従来どおり
+    PUT /requirements で行う。revision はLLMではなくサーバー側で管理する。
+    """
+    updated = previous.model_copy(deep=True)
+
+    for name in PATCH_SCALAR_FIELDS:
+        value = getattr(patch, name)
+        if value is not None and value.strip():
+            setattr(updated, name, value.strip())
+
+    for name in PATCH_LIST_FIELDS:
+        value = getattr(patch, name)
+        if value:
+            setattr(updated, name, value)
+
+    if patch.architecture is not None:
+        for name, value in patch.architecture.model_dump(exclude_none=True).items():
+            if value.strip():
+                setattr(updated.architecture, name, value.strip())
+
+    for note in patch.raw_notes_append:
+        clean = note.strip()
+        if clean and clean not in updated.raw_notes:
+            updated.raw_notes.append(clean)
+
+    if patch.stage is not None:
+        updated.stage = patch.stage
+    updated.revision = previous.revision + 1
+    return updated
 
 
 def completeness(requirements: Requirements) -> int:

@@ -39,8 +39,9 @@ kfreqaihl の判断ジョブと GPU 1枚を奪い合う。2026-08-03 15:26 JST �
 実行後は `rqdb4ai-api` / `rqdb4ai-web-worker` / `karchitect` を再起動する。
 
 **kgeo のジョブ関数は流用できない。** `kgeo.jobs.ollama_chat_job` は Ollama の
-`format`（JSON Schema）を受け付けない。karchitect は構造化出力 `ChatTurnOutput`
-が前提で、`format` を落とすと応答が自由文になり解析に失敗する。
+`format`（JSON Schema）を受け付けない。karchitect は短い会話文と変更差分だけを返す
+構造化出力 `ChatTurnDelta` が前提で、`format` を落とすと応答が自由文になり解析に失敗する。
+完全な `Requirements` はLLMに再出力させず、Python側で差分を既存要件へ統合する。
 
 ## Checks
 

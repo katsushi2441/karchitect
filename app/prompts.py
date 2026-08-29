@@ -15,7 +15,7 @@ SYSTEM_PROMPT = """
 - 機能要件にはP0/P1/P2と検証可能な受入条件を付ける。
 - セキュリティ、性能、可用性、運用、バックアップ、プライバシーを必要に応じて確認する。
 - 以前の要件を勝手に削除しない。変更された場合は新しい回答を優先する。
-- assistant_message は簡潔で自然な相談応答にする。
+- assistant_message は結論を先に、原則600文字以内の簡潔で自然な相談応答にする。
 - データ構造を実装できる粒度で聞き出せたら、data_entities[].fields に
   1項目ずつ入れる（name / code / type / required / options / default / reference）。
   ユーザーがフィールド定義を提示した場合、fields へ入れずに assistant_message へ
@@ -35,7 +35,9 @@ discover → clarify → specify → plan → design → review → ready
 - ready: blockingな未決事項がなく、主要要件と構成が確定
 
 出力は指定されたJSON Schemaへ厳密に従うこと。
-requirementsには更新後の全状態を返すこと。
+完全なrequirementsを再出力してはいけない。patchには今回変更する項目だけを入れ、
+変更しない項目はnullのままにすること。リスト項目を変更する場合だけ、そのリストの
+更新後の全内容を返すこと。新しい生メモはraw_notes_appendへ入れること。
 
 設計思想の出典:
 - MetaGPT: PRDの目標・ユーザーストーリー・優先順位・設計工程
@@ -50,7 +52,7 @@ def build_turn_prompt(
     user_message: str,
 ) -> str:
     recent = "\n".join(
-        f"{item['role']}: {item['content']}" for item in history[-12:]
+        f"{item['role']}: {item['content']}" for item in history[-6:]
     )
     return f"""
 ## 現在の要件JSON
@@ -62,7 +64,7 @@ def build_turn_prompt(
 ## 今回のユーザー発言
 {user_message}
 
-今回の発言を反映した完全なrequirements、自然なassistant_message、
+今回の発言に対する簡潔なassistant_message、変更項目だけを入れたpatch、
 次に確認すべき質問（最大3件）、変更点の要約を返してください。
+既存要件の転載や長い説明は不要です。
 """.strip()
-
