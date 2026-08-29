@@ -76,7 +76,7 @@ def test_bootstrap_asks_only_one_question(tmp_path: Path, monkeypatch):
     assert assistant.count("？") == 1
 
 
-def test_paid_ai_choice_is_saved_without_calling_llm(tmp_path: Path, monkeypatch):
+def test_runtime_ai_choice_is_saved_without_calling_llm(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("app.main.chat_turn", _fail_if_called)
     with _client(tmp_path, monkeypatch) as client:
         project = client.post(
@@ -87,26 +87,26 @@ def test_paid_ai_choice_is_saved_without_calling_llm(tmp_path: Path, monkeypatch
             },
             headers=HEADERS,
         ).json()
-        assert project["policy_question"]["code"] == "PAID_AI_USAGE"
+        assert project["policy_question"]["code"] == "RUNTIME_AI_USAGE"
 
         result = client.post(
             f"/api/projects/{project['id']}/messages",
-            json={"content": "有料AIは使いません"},
+            json={"content": "実行時AIは使いません"},
             headers=HEADERS,
         )
 
     assert result.status_code == 200
     body = result.json()
     assert body["policy_question"] is None
-    assert any("有料AI APIを使用しない" in item for item in body["requirements"]["constraints"])
+    assert any("ローカルモデルを使用しない" in item for item in body["requirements"]["constraints"])
     assert any(
-        item["topic"] == "実行時の有料AI利用" and item["decision"] == "使用しない"
+        item["topic"] == "実行時のAI利用" and item["decision"] == "使用しない"
         for item in body["requirements"]["decisions"]
     )
-    assert "ルール、OSS、ローカルモデル" in body["messages"][-1]["content"]
+    assert "ローカルモデルも使わず" in body["messages"][-1]["content"]
 
 
-def test_design_does_not_advance_before_paid_ai_choice(tmp_path: Path, monkeypatch):
+def test_design_does_not_advance_before_runtime_ai_choice(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("app.main.chat_turn", _fail_if_called)
     with _client(tmp_path, monkeypatch) as client:
         project = client.post(
@@ -125,5 +125,5 @@ def test_design_does_not_advance_before_paid_ai_choice(tmp_path: Path, monkeypat
 
     assert result.status_code == 200
     body = result.json()
-    assert "有料AIを使いますか" in body["messages"][-1]["content"]
+    assert "AI・LLM・VLMを使いますか" in body["messages"][-1]["content"]
     assert "画像を自動判定したいです" in body["requirements"]["raw_notes"]

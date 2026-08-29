@@ -6,54 +6,71 @@ from typing import Literal
 from .models import Decision, DesignWarning, PolicyOption, PolicyQuestion, Requirements
 
 
+PolicyChoice = Literal["unknown", "prohibited", "allowed"]
+RUNTIME_AI_TOPIC = "実行時のAI利用"
+PAID_API_TOPIC = "有料外部API利用"
+RUNTIME_AI_QUESTION = "このシステムの運用時に、AI・LLM・VLMを使いますか？"
+PAID_API_QUESTION = "このシステムの運用時に、利用料が発生する可能性のある外部APIを使いますか？"
+
 AI_TERMS = re.compile(
-    r"(?:LLM|VLM|AI解析|AI判定|生成AI|Claude|ChatGPT|OpenAI|Gemini|GPT)",
+    r"(?:LLM|VLM|Claude|ChatGPT|OpenAI|Gemini|GPT|生成AI|AI解析|AI判定|"
+    r"ローカルモデル|画像認識モデル|機械学習|ディープラーニング|"
+    r"(?<![A-Za-z])AI(?![A-Za-z]))",
     re.IGNORECASE,
 )
-EXTERNAL_AI_TERMS = re.compile(
-    r"(?:Claude|ChatGPT|OpenAI|Gemini|外部LLM|外部VLM|有料LLM|有料API)",
+EXTERNAL_API_TERMS = re.compile(
+    r"(?:Google\s+(?:Street\s+View|Maps)\s+API|外部API|"
+    r"(?<![A-Za-z])API(?:$|[\s、。)]|連携|を|で|経由|利用|使用))",
     re.IGNORECASE,
 )
-LOCAL_MARKERS = re.compile(
-    r"(?:ローカル|オンプレ|自社サーバ|OSS|Ollama|無課金|オフライン)",
-    re.IGNORECASE,
-)
+FREE_API_MARKERS = re.compile(r"(?:無料|無償|自社|内部|セルフホスト|self-hosted)", re.IGNORECASE)
 REDUCTION_TERMS = re.compile(
     r"(?:抑え|削減|減ら|節約|回避|依存しない|使わない|高コスト|大量に消費)",
     re.IGNORECASE,
 )
-PaidAIChoice = Literal["unknown", "prohibited", "allowed"]
-PAID_AI_TOPIC = "実行時の有料AI利用"
-PAID_AI_QUESTION = "このシステムの運用時に、Claudeなどの有料AIを使いますか？"
-PROHIBIT_ANSWER_RE = re.compile(
-    r"(?:有料AI|外部LLM|有料API).*(?:使わない|使いません|使用しない|禁止|不要)|"
-    r"(?:使わない|使いません|使用しない).*(?:有料AI|外部LLM|有料API)",
+RUNTIME_AI_NO_ANSWER = re.compile(
+    r"(?:実行時AI|AI・LLM・VLM|AI|LLM|VLM).*(?:使わない|使いません|使用しない|禁止)",
     re.IGNORECASE,
 )
-ALLOW_ANSWER_RE = re.compile(
-    r"(?:有料AI|外部LLM|有料API).*(?:使います|使用する|利用を許可|利用可)|"
-    r"(?:使います|使用する|利用を許可).*(?:有料AI|外部LLM|有料API)",
+RUNTIME_AI_YES_ANSWER = re.compile(
+    r"(?:実行時AI|AI・LLM・VLM|AI|LLM|VLM).*(?:使います|使用する|利用を許可|利用可)",
+    re.IGNORECASE,
+)
+PAID_API_NO_ANSWER = re.compile(
+    r"(?:有料外部API|有料API|利用料.*外部API).*(?:使わない|使いません|使用しない|禁止)",
+    re.IGNORECASE,
+)
+PAID_API_YES_ANSWER = re.compile(
+    r"(?:有料外部API|有料API|利用料.*外部API).*(?:使います|使用する|利用を許可|利用可)",
     re.IGNORECASE,
 )
 
 
 def _goal_text(req: Requirements) -> str:
-    return "\n".join(
-        [req.summary, req.purpose, req.background, *req.raw_notes]
-    )
+    return "\n".join([req.summary, req.purpose, req.background, *req.raw_notes])
 
 
 def minimizes_external_ai(req: Requirements) -> bool:
-    """外部AIの費用・トークン削減がプロジェクト目的かを判定する。"""
     text = _goal_text(req)
     has_ai_cost_subject = bool(
-        re.search(r"(?:トークン|Claude|ChatGPT|OpenAI|外部LLM|LLM.*(?:費用|コスト))", text, re.I)
+        re.search(r"(?:トークン|Claude|ChatGPT|OpenAI|LLM.*(?:費用|コスト))", text, re.I)
     )
     return has_ai_cost_subject and bool(REDUCTION_TERMS.search(text))
 
 
+def _is_runtime_ai_prohibition(text: str) -> bool:
+    return "実行時にAI、LLM、VLM、ローカルモデルを使用しない" in text
+
+
+def _is_paid_api_prohibition(text: str) -> bool:
+    return "利用料が発生する外部APIを使用しない" in text
+
+
 def _runtime_ai_statements(req: Requirements) -> list[str]:
-    statements = [*req.assumptions, *req.constraints]
+    statements = [
+        *req.assumptions,
+        *[item for item in req.constraints if not _is_runtime_ai_prohibition(item)],
+    ]
     for item in req.functional_requirements:
         statements.extend([item.title, item.description, *item.acceptance_criteria])
     for item in req.non_functional_requirements:
@@ -61,63 +78,104 @@ def _runtime_ai_statements(req: Requirements) -> list[str]:
     for item in req.integrations:
         statements.extend([item.name, item.purpose, item.protocol])
     statements.extend(req.architecture.model_dump().values())
+    return [text.strip() for text in statements if text and AI_TERMS.search(text)]
+
+
+def _external_api_statements(req: Requirements) -> list[str]:
+    statements = [
+        *req.assumptions,
+        *[item for item in req.constraints if not _is_paid_api_prohibition(item)],
+    ]
+    for item in req.functional_requirements:
+        statements.extend([item.title, item.description, *item.acceptance_criteria])
+    for item in req.integrations:
+        statements.extend([item.name, item.purpose, item.protocol])
     return [
         text.strip()
         for text in statements
-        if text and AI_TERMS.search(text) and not PROHIBIT_ANSWER_RE.search(text)
+        if text and EXTERNAL_API_TERMS.search(text) and not FREE_API_MARKERS.search(text)
     ]
 
 
-def paid_ai_choice(req: Requirements) -> PaidAIChoice:
-    """明示的に確定した決定・制約だけを利用する。目的文から勝手に推測しない。"""
+def _decision_choice(req: Requirements, topic: str) -> PolicyChoice:
     for item in reversed(req.decisions):
-        if item.topic != PAID_AI_TOPIC or item.status != "confirmed":
+        if item.topic != topic or item.status != "confirmed":
             continue
         if re.search(r"(?:使用しない|使わない|禁止)", item.decision):
             return "prohibited"
         if re.search(r"(?:使用する|利用を許可|利用可)", item.decision):
             return "allowed"
-    joined = "\n".join(req.constraints)
-    if PROHIBIT_ANSWER_RE.search(joined):
-        return "prohibited"
-    if ALLOW_ANSWER_RE.search(joined):
-        return "allowed"
     return "unknown"
 
 
-def needs_paid_ai_confirmation(req: Requirements) -> bool:
-    return (
-        paid_ai_choice(req) == "unknown"
-        and (minimizes_external_ai(req) or bool(_runtime_ai_statements(req)))
+def runtime_ai_choice(req: Requirements) -> PolicyChoice:
+    choice = _decision_choice(req, RUNTIME_AI_TOPIC)
+    if choice != "unknown":
+        return choice
+    return "prohibited" if any(_is_runtime_ai_prohibition(item) for item in req.constraints) else "unknown"
+
+
+def paid_api_choice(req: Requirements) -> PolicyChoice:
+    choice = _decision_choice(req, PAID_API_TOPIC)
+    if choice != "unknown":
+        return choice
+    return "prohibited" if any(_is_paid_api_prohibition(item) for item in req.constraints) else "unknown"
+
+
+def next_policy_question(req: Requirements) -> PolicyQuestion | None:
+    ai_relevant = (
+        minimizes_external_ai(req)
+        or bool(AI_TERMS.search(_goal_text(req)))
+        or bool(_runtime_ai_statements(req))
     )
+    if ai_relevant and runtime_ai_choice(req) == "unknown":
+        return PolicyQuestion(
+            code="RUNTIME_AI_USAGE",
+            question=RUNTIME_AI_QUESTION,
+            options=[
+                PolicyOption(
+                    label="使わない",
+                    value="実行時AIは使いません",
+                    description="固定ルール、通常処理、担当者確認だけで設計します。",
+                ),
+                PolicyOption(
+                    label="利用を許可",
+                    value="実行時AIの利用を許可します",
+                    description="利用箇所と実行方式を設計します。",
+                ),
+            ],
+        )
+    if _external_api_statements(req) and paid_api_choice(req) == "unknown":
+        return PolicyQuestion(
+            code="PAID_EXTERNAL_API_USAGE",
+            question=PAID_API_QUESTION,
+            options=[
+                PolicyOption(
+                    label="使わない",
+                    value="有料外部APIは使いません",
+                    description="公開データ取込または担当者入力で設計します。",
+                ),
+                PolicyOption(
+                    label="利用を許可",
+                    value="有料外部APIの利用を許可します",
+                    description="利用箇所と月間費用上限を設計します。",
+                ),
+            ],
+        )
+    return None
 
 
-def paid_ai_policy_question(req: Requirements) -> PolicyQuestion | None:
-    if not needs_paid_ai_confirmation(req):
-        return None
-    return PolicyQuestion(
-        code="PAID_AI_USAGE",
-        question=PAID_AI_QUESTION,
-        options=[
-            PolicyOption(
-                label="使わない",
-                value="有料AIは使いません",
-                description="ルール、OSS、ローカルモデルだけで設計します。",
-            ),
-            PolicyOption(
-                label="利用を許可",
-                value="有料AIの利用を許可します",
-                description="利用箇所と費用上限を設計します。",
-            ),
-        ],
-    )
-
-
-def parse_paid_ai_answer(content: str) -> PaidAIChoice:
-    if PROHIBIT_ANSWER_RE.search(content):
-        return "prohibited"
-    if ALLOW_ANSWER_RE.search(content):
-        return "allowed"
+def parse_policy_answer(content: str, code: str) -> PolicyChoice:
+    if code == "RUNTIME_AI_USAGE":
+        if RUNTIME_AI_NO_ANSWER.search(content):
+            return "prohibited"
+        if RUNTIME_AI_YES_ANSWER.search(content):
+            return "allowed"
+    if code == "PAID_EXTERNAL_API_USAGE":
+        if PAID_API_NO_ANSWER.search(content):
+            return "prohibited"
+        if PAID_API_YES_ANSWER.search(content):
+            return "allowed"
     return "unknown"
 
 
@@ -129,168 +187,203 @@ def _next_decision_id(req: Requirements) -> str:
     return f"D{number:03d}"
 
 
-def _localize_ai_text(text: str) -> str:
-    """有料・実行場所未定のAI名を、禁止方針に沿う表現へ置き換える。"""
-    replacements = (
-        (r"Claude|ChatGPT|OpenAI|Gemini|GPT", "ローカルモデル"),
-        (r"外部LLM|有料LLM|有料API", "ローカルモデル"),
-        (r"(?<!ローカル)LLM", "ローカルモデル"),
-        (r"(?<!ローカル)VLM", "ローカルVLM"),
-        (r"(?<!ローカル)AI解析", "ローカル画像解析"),
-        (r"(?<!ローカル)AI判定", "ローカルモデル判定"),
-        (r"(?<!ローカル)生成AI", "ローカル生成モデル"),
+def _save_decision(req: Requirements, topic: str, choice: PolicyChoice) -> None:
+    decision_text = "使用しない" if choice == "prohibited" else "利用を許可する"
+    existing = next((item for item in req.decisions if item.topic == topic), None)
+    if existing:
+        existing.decision = decision_text
+        existing.status = "confirmed"
+        existing.rationale = "利用者が画面上で明示的に選択"
+        return
+    req.decisions.append(
+        Decision(
+            id=_next_decision_id(req),
+            topic=topic,
+            decision=decision_text,
+            rationale="利用者が画面上で明示的に選択",
+            status="confirmed",
+        )
     )
-    updated = text
-    for pattern, replacement in replacements:
-        updated = re.sub(pattern, replacement, updated, flags=re.IGNORECASE)
+
+
+def _without_ai_sentences(text: str, replacement: str) -> str:
+    if not text or not AI_TERMS.search(text):
+        return text
+    parts = re.split(r"(?<=[。！？])", text)
+    result: list[str] = []
+    inserted = False
+    for part in parts:
+        if AI_TERMS.search(part):
+            if not inserted:
+                result.append(replacement)
+                inserted = True
+        else:
+            result.append(part)
+    return "".join(result).strip()
+
+
+def enforce_runtime_ai_prohibition(req: Requirements) -> Requirements:
+    if runtime_ai_choice(req) != "prohibited":
+        return req
+    updated = req.model_copy(deep=True)
+    updated.assumptions = [text for text in updated.assumptions if not AI_TERMS.search(text)]
+    updated.integrations = [
+        item
+        for item in updated.integrations
+        if not AI_TERMS.search(" ".join([item.name, item.purpose, item.protocol]))
+    ]
+    for name, value in updated.architecture.model_dump().items():
+        if value and AI_TERMS.search(value):
+            setattr(updated.architecture, name, "")
+
+    description = "取得可能な数値データと固定ルールで処理し、画像判断が必要な項目は担当者が確認する。"
+    criterion = "固定ルールで判定できない場合は、担当者確認として明示される。"
+    for item in updated.functional_requirements:
+        if AI_TERMS.search(item.title):
+            item.title = "ルール判定・担当者確認"
+        item.description = _without_ai_sentences(item.description, description)
+        item.acceptance_criteria = [
+            _without_ai_sentences(value, criterion) for value in item.acceptance_criteria
+        ]
+    for item in updated.non_functional_requirements:
+        item.requirement = _without_ai_sentences(item.requirement, "通常プログラムだけで要件を満たす。")
+        item.target = _without_ai_sentences(item.target, "担当者が確認可能な時間内に処理する。")
     return updated
 
 
-def enforce_paid_ai_prohibition(req: Requirements) -> Requirements:
-    """禁止確定後に、外部・実行場所未定のAI仮定を設計から除外する。"""
-    if paid_ai_choice(req) != "prohibited":
+def _without_paid_api_sentences(text: str) -> str:
+    if not text or not EXTERNAL_API_TERMS.search(text) or FREE_API_MARKERS.search(text):
+        return text
+    replacement = "外部の有料APIを使わず、公開データの取込または担当者入力で処理する。"
+    parts = re.split(r"(?<=[。！？])", text)
+    result: list[str] = []
+    inserted = False
+    for part in parts:
+        if EXTERNAL_API_TERMS.search(part) and not FREE_API_MARKERS.search(part):
+            if not inserted:
+                result.append(replacement)
+                inserted = True
+        else:
+            result.append(part)
+    return "".join(result).strip()
+
+
+def enforce_paid_api_prohibition(req: Requirements) -> Requirements:
+    if paid_api_choice(req) != "prohibited":
         return req
     updated = req.model_copy(deep=True)
     updated.assumptions = [
         text
         for text in updated.assumptions
-        if not (AI_TERMS.search(text) and not LOCAL_MARKERS.search(text))
+        if not (EXTERNAL_API_TERMS.search(text) and not FREE_API_MARKERS.search(text))
     ]
     updated.integrations = [
         item
         for item in updated.integrations
-        if not EXTERNAL_AI_TERMS.search(" ".join([item.name, item.purpose, item.protocol]))
+        if not (
+            EXTERNAL_API_TERMS.search(" ".join([item.name, item.purpose, item.protocol]))
+            and not FREE_API_MARKERS.search(" ".join([item.name, item.purpose, item.protocol]))
+        )
     ]
-    for name, value in updated.architecture.model_dump().items():
-        if value and EXTERNAL_AI_TERMS.search(value):
-            setattr(updated.architecture, name, "")
-        elif value:
-            setattr(updated.architecture, name, _localize_ai_text(value))
     for item in updated.functional_requirements:
-        item.title = _localize_ai_text(item.title)
-        item.description = _localize_ai_text(item.description)
-        item.acceptance_criteria = [_localize_ai_text(value) for value in item.acceptance_criteria]
-    for item in updated.non_functional_requirements:
-        item.requirement = _localize_ai_text(item.requirement)
-        item.target = _localize_ai_text(item.target)
+        item.title = _without_paid_api_sentences(item.title)
+        item.description = _without_paid_api_sentences(item.description)
+        item.acceptance_criteria = [_without_paid_api_sentences(value) for value in item.acceptance_criteria]
     return updated
 
 
-def apply_paid_ai_choice(req: Requirements, choice: PaidAIChoice) -> Requirements:
+def enforce_design_policies(req: Requirements) -> Requirements:
+    return enforce_paid_api_prohibition(enforce_runtime_ai_prohibition(req))
+
+
+def apply_policy_choice(req: Requirements, code: str, choice: PolicyChoice) -> Requirements:
     if choice not in {"prohibited", "allowed"}:
         return req
     updated = req.model_copy(deep=True)
-    decision_text = "使用しない" if choice == "prohibited" else "利用を許可する"
-    existing = next((item for item in updated.decisions if item.topic == PAID_AI_TOPIC), None)
-    if existing:
-        existing.decision = decision_text
-        existing.status = "confirmed"
-        existing.rationale = "利用者が画面上で明示的に選択"
+    if code == "RUNTIME_AI_USAGE":
+        _save_decision(updated, RUNTIME_AI_TOPIC, choice)
+        if choice == "prohibited":
+            constraint = "実行時にAI、LLM、VLM、ローカルモデルを使用しない。"
+            if constraint not in updated.constraints:
+                updated.constraints.append(constraint)
+    elif code == "PAID_EXTERNAL_API_USAGE":
+        _save_decision(updated, PAID_API_TOPIC, choice)
+        if choice == "prohibited":
+            constraint = "利用料が発生する外部APIを使用しない。"
+            if constraint not in updated.constraints:
+                updated.constraints.append(constraint)
     else:
-        updated.decisions.append(
-            Decision(
-                id=_next_decision_id(updated),
-                topic=PAID_AI_TOPIC,
-                decision=decision_text,
-                rationale="利用者が画面上で明示的に選択",
-                status="confirmed",
-            )
-        )
-    if choice == "prohibited":
-        constraint = "実行時にClaude、OpenAI等の有料AI APIを使用しない。"
-        if constraint not in updated.constraints:
-            updated.constraints.append(constraint)
+        return req
     updated.revision += 1
-    return enforce_paid_ai_prohibition(updated)
+    return enforce_design_policies(updated)
 
 
 def design_policy_warnings(req: Requirements) -> list[DesignWarning]:
-    """目的と実行時AI依存の矛盾を、LLMを使わず決定的に検出する。"""
-    if not (minimizes_external_ai(req) or _runtime_ai_statements(req)):
-        return []
-
-    choice = paid_ai_choice(req)
-    if choice == "unknown":
+    question = next_policy_question(req)
+    if question:
+        if question.code == "RUNTIME_AI_USAGE":
+            return [
+                DesignWarning(
+                    code="RUNTIME_AI_CONFIRMATION_REQUIRED",
+                    severity="blocking",
+                    title="実行時にAIを使うか決めてください",
+                    detail="ローカルモデルを含め、運用時にAIを使うかまだ確認できていません。",
+                    recommendation="使わない場合は、固定ルール、通常処理、担当者確認だけで設計します。",
+                )
+            ]
         return [
             DesignWarning(
-                code="PAID_AI_CONFIRMATION_REQUIRED",
+                code="PAID_API_CONFIRMATION_REQUIRED",
                 severity="blocking",
-                title="有料AIを使うか決めてください",
-                detail=(
-                    "画像判定などにAIを使う案がありますが、Claudeなどの有料AIを"
-                    "使うか、まだ確認できていません。"
-                ),
-                recommendation=(
-                    "使わない場合は、ルール、OSS、ローカルモデル、人による確認だけで設計します。"
-                ),
+                title="有料の外部APIを使うか決めてください",
+                detail="利用料が発生する可能性のある外部APIを使うか確認できていません。",
+                recommendation="使わない場合は、公開データ取込または担当者入力で設計します。",
             )
         ]
-    if choice == "allowed":
-        return []
 
-    statements = _runtime_ai_statements(req)
-    explicit_external = [text for text in statements if EXTERNAL_AI_TERMS.search(text)]
-    unspecified = [
-        text
-        for text in statements
-        if not EXTERNAL_AI_TERMS.search(text) and not LOCAL_MARKERS.search(text)
-    ]
     warnings: list[DesignWarning] = []
-    if explicit_external:
+    ai_statements = _runtime_ai_statements(req)
+    if runtime_ai_choice(req) == "prohibited" and ai_statements:
         warnings.append(
             DesignWarning(
-                code="EXTERNAL_AI_CONFLICT",
+                code="RUNTIME_AI_CONFLICT",
                 severity="blocking",
-                title="外部AI依存がプロジェクト目的と矛盾しています",
-                detail=f"実行時の外部AI利用案: {explicit_external[0][:180]}",
-                recommendation=(
-                    "通常プログラム、ルール判定、OSS、ローカルモデルの順に置き換え、"
-                    "外部AIを使う場合は対象処理・理由・月間上限費用を明記してください。"
-                ),
+                title="AIを使わない方針と設計内容が矛盾しています",
+                detail=f"AI利用案が残っています: {ai_statements[0][:180]}",
+                recommendation="固定ルール、通常処理、担当者確認へ変更してください。",
             )
         )
-    if unspecified:
+    api_statements = _external_api_statements(req)
+    if paid_api_choice(req) == "prohibited" and api_statements:
         warnings.append(
             DesignWarning(
-                code="AI_RUNTIME_UNSPECIFIED",
-                severity="warning",
-                title="AIの実行場所と費用が未定義です",
-                detail=f"実行方式が曖昧なAI利用案: {unspecified[0][:180]}",
-                recommendation=(
-                    "ローカルVLM/Ollama等の実行方式を明記し、ルール処理で代替できない"
-                    "範囲だけにAI利用を限定してください。"
-                ),
+                code="PAID_API_CONFLICT",
+                severity="blocking",
+                title="有料APIを使わない方針と設計内容が矛盾しています",
+                detail=f"外部API利用案が残っています: {api_statements[0][:180]}",
+                recommendation="公開データ取込または担当者入力へ変更してください。",
             )
         )
     return warnings
 
 
 def design_policy_context(req: Requirements) -> str:
-    """Gemmaへ渡す、コード判定済みの設計制約。"""
-    if not (minimizes_external_ai(req) or _runtime_ai_statements(req)):
-        return "コード判定による追加制約はありません。"
-
-    choice = paid_ai_choice(req)
-    if choice == "unknown":
+    question = next_policy_question(req)
+    if question:
         return f"""
 コードが検出した必須確認事項:
-- {PAID_AI_QUESTION}
-- 利用者が回答するまで、AIを使う構成を提案・確定してはいけない。
+- {question.question}
+- 利用者が回答するまで、この方針に関係する構成を提案・確定してはいけない。
 - この確認以外の新しい質問をしてはいけない。
 """.strip()
-    if choice == "allowed":
-        return "有料AIの利用は許可されています。利用箇所、呼出頻度、月間費用上限を明記してください。"
 
-    warnings = design_policy_warnings(req)
-    detected = "\n".join(f"- {item.title}: {item.detail}" for item in warnings)
-    return f"""
-コードが検出した最優先目的: 外部LLMのトークン消費・費用を削減すること。
-必須ルール:
-- Claude、OpenAI等の有料AIは実行時に使用しない。
-- 通常プログラム、決定的ルール、OSS、ローカルモデルの順に検討する。
-- AIが不可欠な処理は、実行場所、モデル、呼出頻度、費用上限、非AI代替案を明記する。
-- 画像理解が必要なら、まずローカルVLMまたは専用画像認識モデルを検討する。
-
-現在の矛盾・未定義:
-{detected or '- なし'}
-""".strip()
+    rules: list[str] = []
+    if runtime_ai_choice(req) == "prohibited":
+        rules.append("実行時にAI・LLM・VLM・ローカルモデルを使用しない。固定ルールと担当者確認で設計する。")
+    elif runtime_ai_choice(req) == "allowed":
+        rules.append("実行時AIの利用は許可されている。利用箇所と実行方式を明記する。")
+    if paid_api_choice(req) == "prohibited":
+        rules.append("利用料が発生する外部APIを使用しない。公開データ取込または担当者入力で設計する。")
+    elif paid_api_choice(req) == "allowed":
+        rules.append("有料外部APIの利用は許可されている。利用箇所と月間費用上限を明記する。")
+    return "\n".join(f"- {item}" for item in rules) or "コード判定による追加制約はありません。"

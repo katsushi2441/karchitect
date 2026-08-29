@@ -43,11 +43,11 @@ from .models import (
     Requirements,
 )
 from .policies import (
-    apply_paid_ai_choice,
+    apply_policy_choice,
     design_policy_warnings,
-    enforce_paid_ai_prohibition,
-    paid_ai_policy_question,
-    parse_paid_ai_answer,
+    enforce_design_policies,
+    next_policy_question,
+    parse_policy_answer,
 )
 
 logger = logging.getLogger("karchitect")
@@ -135,7 +135,7 @@ def _detail(owner: str, project_id: str) -> ProjectDetail:
         document_markdown=row["document_markdown"],
         llm_warning=row["llm_warning"],
         design_warnings=design_policy_warnings(req),
-        policy_question=paid_ai_policy_question(req),
+        policy_question=next_policy_question(req),
         next_action=next_action(req),
     )
 
@@ -247,17 +247,28 @@ async def send_message(
             )
             return _detail(owner, project_id)
 
-        policy_question = paid_ai_policy_question(req)
+        policy_question = next_policy_question(req)
         if policy_question is not None:
-            paid_choice = parse_paid_ai_answer(content)
-            if paid_choice in {"prohibited", "allowed"}:
-                updated = apply_paid_ai_choice(req, paid_choice)
-                response = (
-                    "有料AIを使わない方針を確定しました。今後はルール、OSS、"
-                    "ローカルモデル、人による確認だけで設計します。"
-                    if paid_choice == "prohibited"
-                    else "有料AIの利用を許可する方針を確定しました。利用箇所と費用上限も設計します。"
-                )
+            policy_choice = parse_policy_answer(content, policy_question.code)
+            if policy_choice in {"prohibited", "allowed"}:
+                updated = apply_policy_choice(req, policy_question.code, policy_choice)
+                if policy_question.code == "RUNTIME_AI_USAGE":
+                    response = (
+                        "実行時にAIを使わない方針を確定しました。ローカルモデルも使わず、"
+                        "固定ルール、通常処理、担当者確認だけで設計します。"
+                        if policy_choice == "prohibited"
+                        else "実行時AIの利用を許可する方針を確定しました。利用箇所と実行方式も設計します。"
+                    )
+                else:
+                    response = (
+                        "有料の外部APIを使わない方針を確定しました。公開データ取込または"
+                        "担当者入力で設計します。"
+                        if policy_choice == "prohibited"
+                        else "有料外部APIの利用を許可する方針を確定しました。利用箇所と費用上限も設計します。"
+                    )
+                following = next_policy_question(updated)
+                if following is not None:
+                    response += f"\n\n続けて確認します。{following.question}"
             else:
                 note = completion_body(content) or content
                 updated = append_raw_note(req, note) if note != "入力完了" else req
@@ -289,7 +300,7 @@ async def send_message(
             turn = fallback_turn(req, content, warning)
         # LLMが出し忘れた項目で、確定済みの内容を消さない。
         turn.requirements = preserve_existing_content(req, turn.requirements)
-        turn.requirements = enforce_paid_ai_prohibition(turn.requirements)
+        turn.requirements = enforce_design_policies(turn.requirements)
         dropped = [
             name
             for name in PRESERVED_LIST_FIELDS
