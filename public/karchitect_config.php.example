@@ -3,3 +3,5 @@
 // karchitect_config.php is gitignored and must never be committed.
 define('KARCHITECT_API_BASE', getenv('KARCHITECT_API_BASE') ?: 'http://exbridge.ddns.net:18347');
 define('KARCHITECT_API_TOKEN', getenv('KARCHITECT_API_TOKEN') ?: 'CHANGE_ME');
+// RQDB4AIの待ち行列を含むため、API側の待機上限(既定1200秒)より長くする。
+define('KARCHITECT_API_TIMEOUT', (int)(getenv('KARCHITECT_API_TIMEOUT') ?: 1260));

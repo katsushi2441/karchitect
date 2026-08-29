@@ -99,6 +99,11 @@ function kar_backend_get($path, $user) {
 }
 
 function kar_proxy($method, $path, $user, $consume_credit_user = null) {
+    // RQDB4AIの待ち行列とLLM生成は数分かかる。PHP側だけ先に切らない。
+    @set_time_limit(0);
+    $api_timeout = defined('KARCHITECT_API_TIMEOUT')
+        ? max(30, (int)KARCHITECT_API_TIMEOUT)
+        : 1260;
     $headers = array(
         'Accept: */*',
         'Content-Type: application/json',
@@ -111,7 +116,7 @@ function kar_proxy($method, $path, $user, $consume_credit_user = null) {
     $ch = curl_init(rtrim(KARCHITECT_API_BASE, '/') . $path);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 240);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $api_timeout);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_HEADER, true);
@@ -132,8 +137,12 @@ function kar_proxy($method, $path, $user, $consume_credit_user = null) {
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $header_size = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $curl_error = curl_error($ch);
+    $curl_errno = curl_errno($ch);
     curl_close($ch);
     if ($raw_response === false || $curl_error !== '') {
+        if ($curl_errno === CURLE_OPERATION_TIMEDOUT) {
+            kar_error(504, 'AIの処理が時間内に完了しませんでした。入力内容は保存されています。少し待ってからもう一度お試しください');
+        }
         kar_error(502, 'Kurage Architect APIへ接続できません');
     }
     $response_headers = substr($raw_response, 0, $header_size);

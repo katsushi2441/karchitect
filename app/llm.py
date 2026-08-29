@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 import httpx
+from pydantic_core import from_json
 
 from . import rqdb4ai_client
 from .config import LLM_TIMEOUT, NUM_PREDICT, OLLAMA_URL
@@ -31,13 +32,40 @@ def _parse_json_content(content: str) -> dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if not match:
-            raise OllamaError("Gemmaの応答にJSONが含まれていません")
+        pass
+
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if match:
         try:
             return json.loads(match.group(0))
-        except json.JSONDecodeError as exc:
+        except json.JSONDecodeError:
+            pass
+
+    # Gemmaは長い構造化出力の末尾だけを閉じずに返すことがある。Pydantic Coreの
+    # allow_partialは、そのケースを追加のLLM呼び出しなしで復元できる。
+    start = content.find("{")
+    if start < 0:
+        raise OllamaError("Gemmaの応答にJSONが含まれていません")
+    candidate = content[start:]
+    try:
+        json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        # 途中から壊れた応答を採用すると要件を失うため、末尾10%の破損だけ許可する。
+        if not candidate or exc.pos < int(len(candidate) * 0.9):
             raise OllamaError(f"GemmaのJSON応答を解析できません: {exc}") from exc
+        try:
+            partial = from_json(candidate, allow_partial=True)
+        except ValueError as partial_exc:
+            raise OllamaError(f"GemmaのJSON応答を解析できません: {exc}") from partial_exc
+        if not isinstance(partial, dict) or not {"assistant_message", "requirements"}.issubset(partial):
+            raise OllamaError(f"GemmaのJSON応答を解析できません: {exc}") from exc
+        logger.warning(
+            "Recovered truncated Gemma JSON at position %d/%d",
+            exc.pos,
+            len(candidate),
+        )
+        return partial
+    raise OllamaError("GemmaのJSON応答を解析できません")
 
 
 async def chat_turn(
@@ -60,14 +88,17 @@ async def chat_turn(
             content, job_id = await rqdb4ai_client.run_ollama_chat(
                 messages, model, schema, NUM_PREDICT
             )
-            logger.info("LLM turn via RQDB4AI queue (job=%s)", job_id)
-            return _build_output(content, requirements)
         except Exception as exc:
             # キューが落ちていても対話は続けたい。直叩きへ退避する。
             logger.warning(
                 "RQDB4AI queue unavailable, falling back to direct Ollama: %s: %s",
                 type(exc).__name__, str(exc)[:200],
             )
+        else:
+            # キュー通信の成功後に構造化出力の検証が失敗しても、同じ重い生成を
+            # 直叩きで繰り返さない。呼び出し元の保存用フォールバックへ即座に返す。
+            logger.info("LLM turn via RQDB4AI queue (job=%s)", job_id)
+            return _build_output(content, requirements)
 
     payload = {
         "model": model,
@@ -115,4 +146,3 @@ async def health() -> dict[str, Any]:
         return {"ok": True, "url": OLLAMA_URL, "models": models}
     except Exception as exc:
         return {"ok": False, "url": OLLAMA_URL, "error": str(exc)}
-
