@@ -98,6 +98,11 @@ h1, h2, h3, p { margin-top:0; }
 .warning { display:grid; gap:4px; max-height:150px; margin:12px 22px 0; padding:10px 12px; overflow-y:auto; border:1px solid #f1d8a5; border-radius:10px; color:var(--warning); background:var(--warning-bg); font-size:11px; }
 .warning strong { margin-top:4px; font-size:11px; }
 .warning span { line-height:1.55; }
+.policy-options { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+.policy-option { display:grid; gap:2px; min-width:150px; padding:8px 12px; border:1px solid #d9bd82; border-radius:9px; color:var(--ink); background:#fff; text-align:left; cursor:pointer; }
+.policy-option:hover { border-color:var(--cyan); box-shadow:0 3px 10px rgba(11,145,167,.12); }
+.policy-option b { font-size:11px; }
+.policy-option small { color:var(--muted); font-size:9px; }
 .composer-actions { display:flex; align-items:center; gap:8px; }
 .messages { min-height:0; padding:22px; overflow-y:auto; scroll-behavior:smooth; }
 .empty-chat { max-width:330px; margin:90px auto; text-align:center; }

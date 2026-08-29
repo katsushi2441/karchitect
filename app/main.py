@@ -42,7 +42,13 @@ from .models import (
     ProjectSummary,
     Requirements,
 )
-from .policies import design_policy_warnings
+from .policies import (
+    apply_paid_ai_choice,
+    design_policy_warnings,
+    enforce_paid_ai_prohibition,
+    paid_ai_policy_question,
+    parse_paid_ai_answer,
+)
 
 logger = logging.getLogger("karchitect")
 
@@ -129,6 +135,7 @@ def _detail(owner: str, project_id: str) -> ProjectDetail:
         document_markdown=row["document_markdown"],
         llm_warning=row["llm_warning"],
         design_warnings=design_policy_warnings(req),
+        policy_question=paid_ai_policy_question(req),
         next_action=next_action(req),
     )
 
@@ -240,6 +247,29 @@ async def send_message(
             )
             return _detail(owner, project_id)
 
+        policy_question = paid_ai_policy_question(req)
+        if policy_question is not None:
+            paid_choice = parse_paid_ai_answer(content)
+            if paid_choice in {"prohibited", "allowed"}:
+                updated = apply_paid_ai_choice(req, paid_choice)
+                response = (
+                    "有料AIを使わない方針を確定しました。今後はルール、OSS、"
+                    "ローカルモデル、人による確認だけで設計します。"
+                    if paid_choice == "prohibited"
+                    else "有料AIの利用を許可する方針を確定しました。利用箇所と費用上限も設計します。"
+                )
+            else:
+                note = completion_body(content) or content
+                updated = append_raw_note(req, note) if note != "入力完了" else req
+                response = (
+                    "設計を進める前に確認が必要です。\n\n"
+                    + policy_question.question
+                )
+            save_project(owner, project_id, updated, build_markdown(updated), llm_warning="")
+            add_message(owner, project_id, "assistant", response)
+            logger.info("LLM skipped for paid AI policy: owner=%s project=%s", owner, project_id)
+            return _detail(owner, project_id)
+
         body = completion_body(content)
         if body:
             req = append_raw_note(req, body)
@@ -259,6 +289,7 @@ async def send_message(
             turn = fallback_turn(req, content, warning)
         # LLMが出し忘れた項目で、確定済みの内容を消さない。
         turn.requirements = preserve_existing_content(req, turn.requirements)
+        turn.requirements = enforce_paid_ai_prohibition(turn.requirements)
         dropped = [
             name
             for name in PRESERVED_LIST_FIELDS

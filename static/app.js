@@ -121,9 +121,27 @@ function renderCurrent() {
       `<span>対応: ${escapeHtml(item.recommendation)}</span>`
     );
   });
+  if (project.policy_question) {
+    const options = (project.policy_question.options || []).map((option) =>
+      `<button type="button" class="policy-option" data-value="${escapeHtml(option.value)}">` +
+      `<b>${escapeHtml(option.label)}</b><small>${escapeHtml(option.description || "")}</small></button>`
+    ).join("");
+    notices.push(
+      `<strong>${escapeHtml(project.policy_question.question)}</strong>` +
+      `<div class="policy-options">${options}</div>`
+    );
+  }
   if (notices.length) {
     warning.innerHTML = notices.join("");
     warning.classList.remove("hidden");
+    warning.querySelectorAll(".policy-option").forEach((button) => {
+      button.addEventListener("click", () => {
+        const input = $("#messageInput");
+        if (!input || input.disabled) return;
+        input.value = button.dataset.value || "";
+        $("#messageForm").requestSubmit();
+      });
+    });
   } else {
     warning.innerHTML = "";
     warning.classList.add("hidden");

@@ -221,6 +221,18 @@ class DesignWarning(BaseModel):
     recommendation: str
 
 
+class PolicyOption(BaseModel):
+    label: str
+    value: str
+    description: str = ""
+
+
+class PolicyQuestion(BaseModel):
+    code: str
+    question: str
+    options: list[PolicyOption] = Field(default_factory=list)
+
+
 class NextAction(BaseModel):
     """画面に出す「次にやること」。利用者が魔法の呪文を推測せずに済むようにする。"""
 
@@ -238,6 +250,7 @@ class ProjectDetail(ProjectSummary):
     document_markdown: str
     llm_warning: str = ""
     design_warnings: list[DesignWarning] = Field(default_factory=list)
+    policy_question: PolicyQuestion | None = None
     next_action: NextAction = Field(default_factory=NextAction)
 
 
