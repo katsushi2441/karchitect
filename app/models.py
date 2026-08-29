@@ -211,6 +211,16 @@ class ProjectSummary(BaseModel):
     updated_at: str
 
 
+class DesignWarning(BaseModel):
+    """LLMではなくコードが検出した設計上の矛盾。"""
+
+    code: str
+    severity: Literal["warning", "blocking"] = "warning"
+    title: str
+    detail: str
+    recommendation: str
+
+
 class NextAction(BaseModel):
     """画面に出す「次にやること」。利用者が魔法の呪文を推測せずに済むようにする。"""
 
@@ -227,6 +237,7 @@ class ProjectDetail(ProjectSummary):
     messages: list[Message]
     document_markdown: str
     llm_warning: str = ""
+    design_warnings: list[DesignWarning] = Field(default_factory=list)
     next_action: NextAction = Field(default_factory=NextAction)
 
 

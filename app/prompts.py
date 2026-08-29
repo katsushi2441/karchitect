@@ -50,6 +50,7 @@ def build_turn_prompt(
     requirements_json: str,
     history: list[dict[str, str]],
     user_message: str,
+    policy_context: str = "",
 ) -> str:
     recent = "\n".join(
         f"{item['role']}: {item['content']}" for item in history[-6:]
@@ -57,6 +58,9 @@ def build_turn_prompt(
     return f"""
 ## 現在の要件JSON
 {requirements_json}
+
+## コードで判定した設計ポリシー（最優先）
+{policy_context or "追加制約なし"}
 
 ## 直近の会話
 {recent or "まだ会話はありません"}

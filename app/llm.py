@@ -12,6 +12,7 @@ from . import rqdb4ai_client
 from .config import LLM_TIMEOUT, NUM_PREDICT, OLLAMA_URL
 from .engine import apply_requirements_patch
 from .models import ChatTurnDelta, ChatTurnOutput, Requirements
+from .policies import design_policy_context
 from .prompts import SYSTEM_PROMPT, build_turn_prompt
 
 
@@ -79,7 +80,12 @@ async def chat_turn(
     history: list[dict[str, str]],
     user_message: str,
 ) -> ChatTurnOutput:
-    prompt = build_turn_prompt(requirements.model_dump_json(indent=2), history, user_message)
+    prompt = build_turn_prompt(
+        requirements.model_dump_json(indent=2),
+        history,
+        user_message,
+        design_policy_context(requirements),
+    )
     schema = ChatTurnDelta.model_json_schema()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

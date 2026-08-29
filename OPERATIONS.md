@@ -43,6 +43,13 @@ kfreqaihl の判断ジョブと GPU 1枚を奪い合う。2026-08-03 15:26 JST �
 構造化出力 `ChatTurnDelta` が前提で、`format` を落とすと応答が自由文になり解析に失敗する。
 完全な `Requirements` はLLMに再出力させず、Python側で差分を既存要件へ統合する。
 
+## 設計ポリシーチェック
+
+`app/policies.py` は、外部LLMのトークン消費・費用削減を目的に含むプロジェクトで、
+実行時のClaude/OpenAI依存や実行場所未定義のLLM/VLM利用をコードで検出する。
+検出結果はAPIの `design_warnings`、Web画面、設計書へ表示し、Gemmaへ渡す最優先制約にも
+利用する。判定はLLMへ委ねず、通常プログラム、ルール、OSS、ローカルモデルを優先する。
+
 ## Checks
 
 ```bash

@@ -11,6 +11,7 @@ from weasyprint import HTML
 from .config import STATIC_DIR, TEMPLATES_DIR
 from .engine import completeness
 from .models import Requirements
+from .policies import design_policy_warnings
 
 
 def _bullets(items: list[str], empty: str = "未定") -> str:
@@ -73,6 +74,11 @@ def _safe_mermaid(value: str) -> str:
 
 
 def build_markdown(req: Requirements) -> str:
+    policy_warnings = design_policy_warnings(req)
+    policy_report = "\n".join(
+        f"- **{item.title}**: {item.detail}  \n  対応: {item.recommendation}"
+        for item in policy_warnings
+    ) or "- コード検査で設計目的との矛盾は検出されていません。"
     functional_rows = [
         [
             item.id,
@@ -145,6 +151,10 @@ def build_markdown(req: Requirements) -> str:
 ### 1.3 背景
 
 {req.background or "未定"}
+
+### 1.4 設計ポリシーチェック
+
+{policy_report}
 
 ## 2. 利用者とステークホルダー
 
@@ -303,4 +313,3 @@ def render_pdf(markdown_text: str, title: str, output: Path) -> Path:
 
 def requirements_json(req: Requirements) -> str:
     return json.dumps(req.model_dump(mode="json"), ensure_ascii=False, indent=2)
-

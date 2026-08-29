@@ -110,10 +110,22 @@ function renderCurrent() {
   renderQuestions(project.requirements.open_questions || []);
   setExportLinks(project.id);
   const warning = $("#warning");
+  const notices = [];
   if (project.llm_warning) {
-    warning.textContent = `LLM警告: ${project.llm_warning}`;
+    notices.push(`<strong>LLM警告</strong><span>${escapeHtml(project.llm_warning)}</span>`);
+  }
+  (project.design_warnings || []).forEach((item) => {
+    notices.push(
+      `<strong>${escapeHtml(item.title)}</strong>` +
+      `<span>${escapeHtml(item.detail)}</span>` +
+      `<span>対応: ${escapeHtml(item.recommendation)}</span>`
+    );
+  });
+  if (notices.length) {
+    warning.innerHTML = notices.join("");
     warning.classList.remove("hidden");
   } else {
+    warning.innerHTML = "";
     warning.classList.add("hidden");
   }
   if (project.document_markdown) {

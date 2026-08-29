@@ -41,6 +41,7 @@ from .models import (
     ProjectSummary,
     Requirements,
 )
+from .policies import design_policy_warnings
 
 logger = logging.getLogger("karchitect")
 
@@ -126,6 +127,7 @@ def _detail(owner: str, project_id: str) -> ProjectDetail:
         messages=get_messages(owner, project_id),
         document_markdown=row["document_markdown"],
         llm_warning=row["llm_warning"],
+        design_warnings=design_policy_warnings(req),
         next_action=next_action(req),
     )
 
