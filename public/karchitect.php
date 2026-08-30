@@ -81,6 +81,14 @@ function kar_route($path, $method) {
     if (preg_match('#^/api/projects/[a-f0-9]{12}/mermaid/(architecture|class|sequence)$#', $path)) {
         return $method === 'GET';
     }
+    // 参考資料。一覧とアップロード。
+    if (preg_match('#^/api/projects/[a-f0-9]{12}/attachments$#', $path)) {
+        return in_array($method, array('GET', 'POST'), true);
+    }
+    // 参考資料の原本ダウンロードと削除。
+    if (preg_match('#^/api/projects/[a-f0-9]{12}/attachments/[a-f0-9]{16}(/original)?$#', $path)) {
+        return in_array($method, array('GET', 'DELETE'), true);
+    }
     return false;
 }
 
@@ -96,6 +104,53 @@ function kar_backend_get($path, $user) {
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     return array($status, json_decode((string)$body, true));
+}
+
+/**
+ * 参考資料のアップロードだけは multipart で送る。
+ * kar_proxy は Content-Type を application/json に固定し、本文をJSONとして
+ * 検証しているため、ファイルを通せない（2026-08-30）。
+ */
+function kar_proxy_upload($path, $user) {
+    @set_time_limit(0);
+    if (empty($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
+        kar_error(400, 'ファイルが選ばれていません');
+    }
+    $max = 10 * 1024 * 1024;
+    if ((int)$_FILES['file']['size'] > $max) {
+        kar_error(413, 'ファイルが大きすぎます（上限10MB）');
+    }
+    $headers = array(
+        'Accept: */*',
+        'X-KArchitect-Token: ' . KARCHITECT_API_TOKEN,
+        'X-KArchitect-User: ' . $user,
+    );
+    if (isset($GLOBALS['act_as']) && $GLOBALS['act_as'] !== '') {
+        $headers[] = 'X-KArchitect-Act-As: ' . $GLOBALS['act_as'];
+    }
+    $ch = curl_init(rtrim(KARCHITECT_API_BASE, '/') . $path);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_TIMEOUT, defined('KARCHITECT_API_TIMEOUT') ? max(60, (int)KARCHITECT_API_TIMEOUT) : 1260);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, array(
+        'file' => new CURLFile(
+            $_FILES['file']['tmp_name'],
+            $_FILES['file']['type'] ?: 'application/octet-stream',
+            $_FILES['file']['name']
+        ),
+    ));
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false) {
+        kar_error(502, '資料の送信に失敗しました');
+    }
+    http_response_code($status ?: 502);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo $body;
+    exit;
 }
 
 function kar_proxy($method, $path, $user, $consume_credit_user = null) {
@@ -196,6 +251,12 @@ if (isset($_GET['api'])) {
         if ($sent_csrf === '' || !hash_equals($csrf, $sent_csrf)) {
             kar_error(403, 'CSRF検証に失敗しました');
         }
+    }
+
+    // 参考資料のアップロードだけは multipart なので専用の転送を通す。
+    // 課金対象ではない（資料の添付でクレジットは減らさない）。
+    if ($method === 'POST' && preg_match('#^/api/projects/[a-f0-9]{12}/attachments$#', $path)) {
+        kar_proxy_upload($path, $session_user);
     }
 
     // ---- 課金(1個目無料・2個目以降 500円 or 50,000 URLAI = クレジット1) ----

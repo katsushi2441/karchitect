@@ -87,12 +87,14 @@ async def chat_turn(
     requirements: Requirements,
     history: list[dict[str, str]],
     user_message: str,
+    attachments_context: str = "",
 ) -> ChatTurnOutput:
     prompt = build_turn_prompt(
         requirements.model_dump_json(indent=2),
         history,
         user_message,
         design_policy_context(requirements),
+        attachments_context,
     )
     schema = ChatTurnDelta.model_json_schema()
     messages = [
@@ -165,3 +167,46 @@ async def health() -> dict[str, Any]:
         return {"ok": True, "url": OLLAMA_URL, "models": models}
     except Exception as exc:
         return {"ok": False, "url": OLLAMA_URL, "error": str(exc)}
+
+
+SUMMARIZE_PROMPT = """
+あなたはシステム設計の準備をしています。
+次の資料から、システムの要件を決めるうえで必要な事実だけを抜き出してください。
+
+守ること:
+- 資料に書かれていないことを足さない。推測を書かない。
+- 感想や評価を書かない。事実だけ。
+- 箇条書きで、多くても30項目。
+- 業務の流れ、扱うデータの項目、関係者、数量、期限、制約、禁止事項を優先する。
+- 表があれば、項目名と代表的な値を残す。
+- 全体で2000文字以内。
+
+## 資料のファイル名
+{filename}
+
+## 資料の中身
+{content}
+""".strip()
+
+
+async def summarize_attachment(model: str, filename: str, content: str) -> str:
+    """添付資料を、以降の会話へ毎回添えられる大きさまで圧縮する。
+
+    ここで1回だけ全文を読ませ、以降は要約だけを使う。
+    全文を毎ターン送ると、1ターン9,000トークンの土台に数万トークンが乗って破綻する。
+    """
+    payload = {
+        "model": model,
+        "stream": False,
+        "think": False,
+        "messages": [{"role": "user", "content": SUMMARIZE_PROMPT.format(filename=filename, content=content)}],
+        "options": {"temperature": 0.1, "top_p": 0.9, "num_predict": 1500},
+    }
+    async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
+        response = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
+        response.raise_for_status()
+        data = response.json()
+    text = (data.get("message") or {}).get("content", "").strip()
+    if not text:
+        raise RuntimeError("資料の要約を作れませんでした")
+    return text[:4000]

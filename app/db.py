@@ -4,6 +4,7 @@ import json
 import sqlite3
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -33,6 +34,17 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_project ON messages(project_id, id);
+CREATE TABLE IF NOT EXISTS attachments (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    stored_path TEXT NOT NULL,
+    filesize INTEGER NOT NULL DEFAULT 0,
+    summary TEXT NOT NULL DEFAULT '',
+    extract_note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_project ON attachments(project_id, created_at);
 """
 
 
@@ -200,3 +212,60 @@ def list_owners() -> list[dict]:
         }
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# 参考資料（添付ファイル）
+# 本文そのものはファイルに置き、DBには要約だけを持つ。
+# 会話のたびに全文を送らないための分け方（app/attachments.py の冒頭に理由）。
+# ---------------------------------------------------------------------------
+
+def add_attachment(
+    project_id: str,
+    attachment_id: str,
+    filename: str,
+    stored_path: str,
+    filesize: int,
+    summary: str,
+    extract_note: str = "",
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO attachments
+               (id, project_id, filename, stored_path, filesize, summary, extract_note, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (attachment_id, project_id, filename, stored_path, filesize, summary, extract_note, now),
+        )
+    return {
+        "id": attachment_id, "project_id": project_id, "filename": filename,
+        "stored_path": stored_path, "filesize": filesize, "summary": summary,
+        "extract_note": extract_note, "created_at": now,
+    }
+
+
+def list_attachments(project_id: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM attachments WHERE project_id = ? ORDER BY created_at",
+            (project_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_attachment(project_id: str, attachment_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM attachments WHERE project_id = ? AND id = ?",
+            (project_id, attachment_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_attachment(project_id: str, attachment_id: str) -> bool:
+    with connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM attachments WHERE project_id = ? AND id = ?",
+            (project_id, attachment_id),
+        )
+    return cur.rowcount > 0

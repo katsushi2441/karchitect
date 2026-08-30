@@ -6,7 +6,20 @@ import pytest
 from fastapi import HTTPException
 
 from app.main import authenticated_owner, is_admin
-from app import config
+from app import config, main
+
+
+@pytest.fixture(autouse=True)
+def _configure_admin(monkeypatch):
+    """管理者もトークンも既定では空。テストの間だけ設定する。
+
+    トークンが空のときは単独利用モードとして DEV_USER を返す仕様のため、
+    代理操作の検証にはトークンを立てる必要がある。
+    """
+    monkeypatch.setattr(config, "ADMIN_USERS", ("xb_bittensor",))
+    monkeypatch.setattr(main, "ADMIN_USERS", ("xb_bittensor",))
+    monkeypatch.setattr(config, "INTERNAL_TOKEN", "test-token")
+    monkeypatch.setattr(main, "INTERNAL_TOKEN", "test-token")
 
 
 def _call(user: str, act_as: str = "", token: str | None = None):

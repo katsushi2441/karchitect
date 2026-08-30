@@ -4,27 +4,36 @@ import asyncio
 import hmac
 import json
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__
+from . import __version__, attachments
 from .config import ADMIN_USERS, DATA_DIR, DEFAULT_MODEL, DEV_USER, INTERNAL_TOKEN, STATIC_DIR
 from .db import (
+    add_attachment,
     add_message,
     create_project,
+    delete_attachment,
+    get_attachment,
     get_messages,
     get_project,
     init_db,
+    list_attachments,
     list_owners,
     list_projects,
     parse_requirements,
     save_project,
 )
 from .documents import build_markdown, render_html, render_pdf, requirements_json
+
+# 参考資料の保存先。data/uploads/<プロジェクトID>/ に置き、外部へは出さない。
+UPLOAD_DIR = DATA_DIR / "uploads"
+MAX_FILES_PER_PROJECT = attachments.MAX_FILES_PER_PROJECT
 from .engine import (
     PRESERVED_LIST_FIELDS,
     bootstrap_message,
@@ -34,7 +43,7 @@ from .engine import (
     preserve_existing_content,
 )
 from .input_guard import append_raw_note, classify_user_input, completion_body
-from .llm import OllamaError, chat_turn, health as ollama_health
+from .llm import OllamaError, chat_turn, health as ollama_health, summarize_attachment
 from .models import (
     MessageCreate,
     ProjectCreate,
@@ -214,6 +223,140 @@ def replace_requirements(
     return _detail(owner, project_id)
 
 
+def _attachments_context(project_id: str) -> str:
+    """添付資料の要点を、会話へ添えられる大きさにまとめる。
+
+    ここで渡すのは要約だけ。元のファイル全文は渡さない（トークンが破綻するため）。
+    """
+    rows = list_attachments(project_id)
+    if not rows:
+        return ""
+    parts = []
+    for row in rows:
+        summary = (row["summary"] or "").strip()
+        if not summary:
+            continue
+        parts.append(f"### {row['filename']}\n{summary}")
+    context = "\n\n".join(parts)
+    # 5ファイル×要約で膨らみすぎないよう、ここでも上限を置く
+    return context[:8000]
+
+
+# ---------------------------------------------------------------------------
+# 参考資料（添付ファイル）
+# アップロード時に一度だけ全文をAIへ渡して要約し、以降の会話では要約だけを使う。
+# 全文を毎ターン送ると 1ターン9,000トークンの土台に数万トークンが乗って破綻する。
+# ---------------------------------------------------------------------------
+
+@app.get("/api/projects/{project_id}/attachments")
+def attachments_index(project_id: str, owner: str = Depends(authenticated_owner)) -> dict:
+    if not get_project(owner, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    items = [
+        {
+            "id": a["id"], "filename": a["filename"], "filesize": a["filesize"],
+            "summary": a["summary"], "extract_note": a["extract_note"],
+            "created_at": a["created_at"],
+        }
+        for a in list_attachments(project_id)
+    ]
+    return {"items": items, "max_files": MAX_FILES_PER_PROJECT}
+
+
+@app.post("/api/projects/{project_id}/attachments")
+async def upload_attachment(
+    project_id: str,
+    file: UploadFile = File(...),
+    owner: str = Depends(authenticated_owner),
+) -> dict:
+    row = get_project(owner, project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    existing = list_attachments(project_id)
+    if len(existing) >= MAX_FILES_PER_PROJECT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"参考資料は1つのプロジェクトにつき{MAX_FILES_PER_PROJECT}件までです。不要なものを削除してからお試しください。",
+        )
+
+    filename = (file.filename or "").strip() or "資料"
+    try:
+        attachments.check_filename(filename)
+    except attachments.AttachmentError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    body = await file.read()
+    if len(body) > attachments.MAX_FILE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ファイルが大きすぎます（上限{attachments.MAX_FILE_BYTES // (1024*1024)}MB）。",
+        )
+    if not body:
+        raise HTTPException(status_code=400, detail="ファイルが空です。")
+
+    attachment_id = uuid.uuid4().hex[:16]
+    folder = UPLOAD_DIR / project_id
+    folder.mkdir(parents=True, exist_ok=True)
+    stored = folder / f"{attachment_id}{Path(filename).suffix.lower()}"
+    stored.write_bytes(body)
+
+    try:
+        extracted = attachments.extract(stored, filename)
+    except attachments.AttachmentError as exc:
+        stored.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # 要約に失敗しても資料は残す。抽出テキストの先頭を代わりに入れておく。
+    try:
+        summary = await summarize_attachment(row["model"] or DEFAULT_MODEL, filename, extracted.text)
+    except Exception:
+        summary = extracted.text[:1500]
+
+    record = add_attachment(
+        project_id=project_id, attachment_id=attachment_id, filename=filename,
+        stored_path=str(stored), filesize=len(body), summary=summary,
+        extract_note=extracted.note,
+    )
+    add_message(owner, project_id, "system", f"参考資料を追加しました: {filename}")
+    return {
+        "id": record["id"], "filename": filename, "filesize": len(body),
+        "summary": summary, "extract_note": extracted.note, "created_at": record["created_at"],
+    }
+
+
+@app.get("/api/projects/{project_id}/attachments/{attachment_id}/original")
+def attachment_original(
+    project_id: str, attachment_id: str, owner: str = Depends(authenticated_owner)
+) -> FileResponse:
+    if not get_project(owner, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    record = get_attachment(project_id, attachment_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    path = Path(record["stored_path"])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="元のファイルが見つかりません")
+    return FileResponse(
+        path, filename=record["filename"],
+        headers={"Content-Disposition": f'attachment; filename="{record["filename"]}"'},
+    )
+
+
+@app.delete("/api/projects/{project_id}/attachments/{attachment_id}")
+def remove_attachment(
+    project_id: str, attachment_id: str, owner: str = Depends(authenticated_owner)
+) -> dict:
+    if not get_project(owner, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    record = get_attachment(project_id, attachment_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    Path(record["stored_path"]).unlink(missing_ok=True)
+    delete_attachment(project_id, attachment_id)
+    return {"deleted": attachment_id}
+
+
 @app.post("/api/projects/{project_id}/messages", response_model=ProjectDetail)
 async def send_message(
     project_id: str,
@@ -286,7 +429,9 @@ async def send_message(
             req = append_raw_note(req, body)
         warning = ""
         try:
-            turn = await chat_turn(row["model"], req, history, content)
+            turn = await chat_turn(
+                row["model"], req, history, content, _attachments_context(project_id)
+            )
         except (OllamaError, ValueError, json.JSONDecodeError) as exc:
             warning = str(exc)
             # ログに残さないと障害に気づけない。2026-08-03にLLMタイムアウトで

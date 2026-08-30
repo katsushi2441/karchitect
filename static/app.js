@@ -1,4 +1,6 @@
-const state = { projects: [], current: null, busy: false };
+const state = {
+  attachments: [],
+  attachmentMax: 5, projects: [], current: null, busy: false };
 const stages = [
   ["discover", "目的と利用者"],
   ["clarify", "曖昧さの解消"],
@@ -90,6 +92,77 @@ async function selectProject(id) {
   state.current = await api(`/api/projects/${id}`);
   renderCurrent();
   renderProjects();
+  loadAttachments();
+}
+
+// ---------------------------------------------------------------------------
+// 参考資料（添付ファイル）
+// アップロードした資料はサーバー側で1回だけ要約され、以降の会話にはその要約が
+// 添えられる。全文を毎回送るとトークンが破綻するため（app/attachments.py 参照）。
+// ---------------------------------------------------------------------------
+
+function attachmentError(message) {
+  const box = $("#attachmentError");
+  box.textContent = message || "";
+  box.classList.toggle("hidden", !message);
+}
+
+async function loadAttachments() {
+  const card = $("#attachmentCard");
+  if (!state.current) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  try {
+    const data = await api(`/api/projects/${state.current.id}/attachments`);
+    state.attachments = data.items || [];
+    state.attachmentMax = data.max_files || 5;
+  } catch (error) {
+    state.attachments = [];
+  }
+  renderAttachments();
+}
+
+function renderAttachments() {
+  const list = $("#attachmentList");
+  const items = state.attachments || [];
+  const max = state.attachmentMax || 5;
+  $("#attachmentCount").textContent = `${items.length} / ${max}`;
+  list.innerHTML = items.map((item) => `
+    <li class="attachment-item">
+      <a href="${apiUrl(`/api/projects/${state.current.id}/attachments/${item.id}/original`)}"
+         title="${escapeHtml(item.summary || "")}">${escapeHtml(item.filename)}</a>
+      <button type="button" data-remove="${item.id}" title="削除">×</button>
+    </li>`).join("");
+  const full = items.length >= max;
+  $("#attachmentAddLabel").textContent = full ? `上限${max}件に達しています` : "＋ 資料を追加";
+  $("#attachmentInput").disabled = full;
+}
+
+async function uploadAttachments(files) {
+  attachmentError("");
+  const label = $("#attachmentAddLabel");
+  for (const file of files) {
+    label.textContent = `読み込み中… ${file.name}`;
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      // CSRFトークンを付けないと、本番のPHP中継で403になる
+      const response = await fetch(apiUrl(`/api/projects/${state.current.id}/attachments`), {
+        method: "POST",
+        body: form,
+        headers: window.KARCHITECT_CSRF ? { "X-CSRF-Token": window.KARCHITECT_CSRF } : {},
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        attachmentError(body.detail || "読み込めませんでした。");
+        break;
+      }
+    } catch (error) {
+      attachmentError("通信に失敗しました。");
+      break;
+    }
+  }
+  label.textContent = "＋ 資料を追加";
+  await loadAttachments();
 }
 
 function renderCurrent() {
@@ -498,6 +571,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       documentToggle.setAttribute("aria-expanded", open ? "true" : "false");
     });
   }
+
+  $("#attachmentInput").addEventListener("change", async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (files.length) await uploadAttachments(files);
+  });
+  $("#attachmentList").addEventListener("click", async (event) => {
+    const id = event.target.dataset ? event.target.dataset.remove : null;
+    if (!id) return;
+    if (!confirm("この資料を削除しますか？")) return;
+    await api(`/api/projects/${state.current.id}/attachments/${id}`, { method: "DELETE" });
+    await loadAttachments();
+  });
 
   $("#exportButton").addEventListener("click", () => $("#exportOptions").classList.toggle("hidden"));
   document.addEventListener("click", (event) => {

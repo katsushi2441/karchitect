@@ -277,3 +277,23 @@ body.acting-as .act-as { color: #d6453d; font-weight: 700; }
   padding:12px 18px; border:0; border-radius:999px; color:#fff; background:#0b91a7;
   box-shadow:0 8px 22px rgba(11,145,167,.35); font-size:13px; font-weight:800; cursor:pointer; }
 @media (max-width: 920px) { .document-toggle { display:inline-flex; } }
+
+/* 参考資料（添付ファイル）。左のプロジェクト欄に置く。 */
+.attachment-card { margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#fbfdfe; }
+.attachment-head { display:flex; justify-content:space-between; align-items:center; font-size:10px;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.attachment-count { font-weight:700; }
+.attachment-list { list-style:none; margin:0 0 8px; padding:0; display:grid; gap:6px; }
+.attachment-item { display:flex; align-items:center; gap:6px; font-size:11px; }
+.attachment-item a { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--ink); text-decoration:none; }
+.attachment-item a:hover { text-decoration:underline; }
+.attachment-item button { border:0; background:transparent; color:var(--muted); cursor:pointer;
+  font-size:14px; line-height:1; padding:2px 4px; }
+.attachment-item button:hover { color:#d6453d; }
+.attachment-add { display:block; }
+.attachment-add span { display:block; padding:7px; border:1px dashed var(--border); border-radius:9px;
+  text-align:center; font-size:11px; font-weight:700; color:var(--ink); cursor:pointer; }
+.attachment-add span:hover { background:#f0f7f9; }
+.attachment-hint { margin:7px 0 0; font-size:10px; line-height:1.6; color:var(--muted); }
+.attachment-error { margin:7px 0 0; font-size:11px; line-height:1.6; color:#d6453d; }

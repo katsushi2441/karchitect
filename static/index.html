@@ -53,6 +53,20 @@
             <div id="nextActionBody"></div>
           </div>
         </div>
+        <div id="attachmentCard" class="attachment-card hidden">
+          <div class="attachment-head">
+            <span>参考資料</span>
+            <span id="attachmentCount" class="attachment-count"></span>
+          </div>
+          <ul id="attachmentList" class="attachment-list"></ul>
+          <label class="attachment-add">
+            <input type="file" id="attachmentInput"
+                   accept=".pdf,.docx,.xlsx,.txt,.md,.csv" multiple hidden>
+            <span id="attachmentAddLabel">＋ 資料を追加</span>
+          </label>
+          <p class="attachment-hint">PDF・Word(.docx)・Excel(.xlsx)。1件10MBまで。<br>スキャンした画像のPDFは読めません。</p>
+          <p id="attachmentError" class="attachment-error hidden"></p>
+        </div>
         <div class="oss-note">
           <strong>OSS INSPIRED WORKFLOW</strong>
           <span>MetaGPT · Spec Kit · GPT Engineer</span>

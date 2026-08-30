@@ -51,11 +51,15 @@ def build_turn_prompt(
     history: list[dict[str, str]],
     user_message: str,
     policy_context: str = "",
+    attachments_context: str = "",
 ) -> str:
     recent = "\n".join(
         f"{item['role']}: {item['content']}" for item in history[-6:]
     )
     return f"""
+## 利用者が添付した参考資料の要点
+{attachments_context or "資料の添付はありません"}
+
 ## 現在の要件JSON
 {requirements_json}
 
@@ -71,6 +75,7 @@ def build_turn_prompt(
 今回の発言に対する簡潔なassistant_message、変更項目だけを入れたpatch、
 次に確認すべき質問（最大1件）、変更点の要約を返してください。
 既存要件の転載や長い説明は不要です。
+参考資料に書かれている事実は、確定事項として扱ってよい。書かれていないことは推測しないこと。
 「以下」「次の通り」「3点あります」など、後続の内容が欠ける表現は禁止です。
 今回の発言が「入力完了」なら、raw_notesに蓄積された入力をまとめて要件へ反映してください。
 """.strip()
