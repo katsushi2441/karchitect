@@ -487,6 +487,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       $("#messageForm").requestSubmit();
     }
   });
+  // スマホでは設計書パネルを画面外に置いている（CSSの920px以下）。
+  // 開くボタンが無いと開けないので、ここで開閉する。
+  const documentToggle = $("#documentToggle");
+  if (documentToggle) {
+    documentToggle.addEventListener("click", () => {
+      const panel = document.querySelector(".document-panel");
+      const open = panel.classList.toggle("mobile-open");
+      documentToggle.textContent = open ? "会話に戻る" : "設計書を見る";
+      documentToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+
   $("#exportButton").addEventListener("click", () => $("#exportOptions").classList.toggle("hidden"));
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".export-menu")) $("#exportOptions").classList.add("hidden");

@@ -13,7 +13,7 @@ define('KAR_PRICE_JPY', 500);
 define('KAR_PRICE_URLAI', 50000);
 // 無料利用ユーザー(運営・協力テスター): プロジェクト作成/設計書出力の課金ゲートを通らない。
 // AIはもともと全ユーザー共通でローカルOllama(gemma4)なので、この免除は支払いのみに効く。
-define('KAR_FREE_USERS', 'xb_bittensor,uchinai_offcial');
+define('KAR_FREE_USERS', 'xb_bittensor,uchinai_offcial,necco647700,myankoro7');
 function kar_bill_is_free_user($user) {
     foreach (explode(',', KAR_FREE_USERS) as $u) {
         $u = trim($u);
