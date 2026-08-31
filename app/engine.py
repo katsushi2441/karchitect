@@ -264,3 +264,36 @@ def next_action(req: Requirements) -> dict:
         "stage": req.stage,
         "next_stage": nxt,
     }
+
+# 画面の「入力完了・解析」ボタンが本文の末尾に足す合図。
+# 利用者が「もう伝えることはない」と言っている状態を表す。
+USER_DONE_MARKER = "入力完了"
+
+
+def user_is_done(message: str) -> bool:
+    """利用者が「入力完了」を押したか。"""
+    return USER_DONE_MARKER in (message or "")
+
+
+def should_autocomplete(req: Requirements, *, user_done: bool = False) -> bool:
+    """AIが残りを埋めて仕上げてよい状態か。
+
+    機能要件が揃っているのに設計側の項目が空、という状態で止めない。
+    利用者はシステム設計の専門家ではないので、スコープやリスクを尋ねても
+    答えられずに完成度が上がらないまま放置される。
+
+    通常は業務上のblockingな未決があるうちは勝手に決めないが、
+    **利用者が「入力完了」を押したときは、それも含めてAIが決める**。
+    もう伝えることが無いと言っている相手に問い続けても前へ進まないため。
+    """
+    if not req.functional_requirements and not user_done:
+        # 通常は機能要件が出てから仕上げる。ただし「入力完了」が押されたなら、
+        # 機能要件そのものもここまでの業務情報から起こす。もう伝えることが
+        # 無いと言っている相手を discover で止め続けない。
+        return False
+    if not user_done and any(
+        q.status == "open" and q.importance == "blocking"
+        for q in req.open_questions
+    ):
+        return False
+    return bool(missing_items(req))

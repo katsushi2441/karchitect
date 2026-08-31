@@ -41,9 +41,12 @@ from .engine import (
     fallback_turn,
     next_action,
     preserve_existing_content,
+    should_autocomplete,
+    missing_items,
+    user_is_done,
 )
 from .input_guard import append_raw_note, classify_user_input, completion_body
-from .llm import OllamaError, chat_turn, health as ollama_health, summarize_attachment
+from .llm import OllamaError, chat_turn, health as ollama_health, summarize_attachment, finalize_design
 from .models import (
     MessageCreate,
     ProjectCreate,
@@ -453,10 +456,79 @@ async def send_message(
         ]
         if dropped:  # 埋め戻し後も空なら異常。気づけるように残す
             logger.warning("requirements sections still empty after preserve: %s", dropped)
+        # 機能要件が揃ったのに設計側の項目が空、という状態で止めない。
+        # 利用者はシステム設計の専門家ではないので、スコープやリスクを尋ねても
+        # 答えられず完成度が上がらないまま放置される(necco647700のプロジェクトが
+        # 80%で停止した)。業務上のblockingな未決が無ければAIが埋めて仕上げる。
+        # 「入力完了」が押されていたら、blockingな未決が残っていてもAIが決めて進める。
+        # もう伝えることが無いと言っている相手に問い続けても前へ進まない。
+        done = user_is_done(content)
+        if not warning and should_autocomplete(turn.requirements, user_done=done):
+            missing = [item["label"] for item in missing_items(turn.requirements)]
+            try:
+                final = await finalize_design(
+                    row["model"], turn.requirements, history, missing,
+                    _attachments_context(project_id), user_done=done,
+                )
+                final.requirements = preserve_existing_content(turn.requirements, final.requirements)
+                final.requirements = enforce_design_policies(final.requirements)
+                turn.requirements = final.requirements
+                turn.assistant_message = (
+                    turn.assistant_message.rstrip()
+                    + "\n\n"
+                    + final.assistant_message.strip()
+                )
+                logger.info(
+                    "autocompleted design: owner=%s project=%s 埋めた項目=%s",
+                    owner, project_id, missing,
+                )
+            except (OllamaError, ValueError, json.JSONDecodeError) as exc:
+                # 仕上げに失敗しても、直前のターンの結果は保存する。
+                logger.warning(
+                    "autocomplete failed: owner=%s project=%s: %s", owner, project_id, exc
+                )
+
         document = build_markdown(turn.requirements)
         save_project(owner, project_id, turn.requirements, document, llm_warning=warning)
         add_message(owner, project_id, "assistant", turn.assistant_message)
         return _detail(owner, project_id)
+
+
+@app.post("/api/projects/{project_id}/finalize", response_model=ProjectDetail)
+async def finalize(
+    project_id: str,
+    owner: str = Depends(authenticated_owner),
+) -> ProjectDetail:
+    """残っている設計項目をAIに埋めさせて仕上げる。
+
+    自動仕上げが入る前に作られ、80%などで止まったままのプロジェクト用。
+    利用者に設計の質問をせず、こちらで決めて埋める。
+    """
+    row = get_project(owner, project_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    req = parse_requirements(row)
+    missing = [item["label"] for item in missing_items(req)]
+    if not missing:
+        return _detail(owner, project_id)
+    if not req.functional_requirements:
+        raise HTTPException(
+            status_code=400,
+            detail="機能要件がまだありません。先に何を作るかを相談してください。",
+        )
+    history_models = get_messages(owner, project_id, limit=30)
+    history = [{"role": m.role, "content": m.content} for m in history_models]
+    try:
+        final = await finalize_design(
+            row["model"], req, history, missing, _attachments_context(project_id)
+        )
+    except (OllamaError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=502, detail=f"仕上げに失敗しました: {exc}") from exc
+    updated = enforce_design_policies(preserve_existing_content(req, final.requirements))
+    save_project(owner, project_id, updated, build_markdown(updated), llm_warning="")
+    add_message(owner, project_id, "assistant", final.assistant_message)
+    logger.info("finalized: owner=%s project=%s 埋めた項目=%s", owner, project_id, missing)
+    return _detail(owner, project_id)
 
 
 @app.post("/api/projects/{project_id}/regenerate", response_model=ProjectDetail)

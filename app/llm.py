@@ -210,3 +210,57 @@ async def summarize_attachment(model: str, filename: str, content: str) -> str:
     if not text:
         raise RuntimeError("資料の要約を作れませんでした")
     return text[:4000]
+
+FINALIZE_INSTRUCTION = """（これはシステムからの指示です。利用者の発言ではありません）
+
+機能要件は揃っています。残っているのは設計側の項目だけで、これは利用者に聞いても
+答えられません。**質問せずに、あなたが決めて埋めてください。**
+
+埋めるもの: {missing}
+
+守ること:
+- いま分かっている業務情報から、この案件に即した具体的な内容にする。
+  一般論のテンプレートを貼らない。
+- 決めた内容は decisions.assumptions に入れる。確定事実として書かない。
+- next_questions は空にする。ここで新たに質問しない。
+- 業務上どうしても本人に確認が要ることだけ open_questions に残す。
+  技術的な選択肢は残さない。
+- assistant_message は、何をどう決めたかを箇条書きで簡潔に伝え、
+  「違っていれば教えてください」と添える。
+- すべて埋まったら stage を ready にする。
+"""
+
+
+USER_DONE_SUFFIX = """
+
+利用者は「入力完了」を押しました。**もう伝えることはない**という意思表示です。
+- **未解決の質問が残っていても、利用者に聞き返さないでください。** あなたが決めます。
+- open_questions は、あなたの判断で埋めて status を answered にしてください。
+  答えられないものだけ残し、その場合も「こう仮定して進めます」と決めた内容を書きます。
+- 選択肢を出すときは、data_entities に実在する項目で実現できるものだけにします。
+  （例: メール欄が無いのに「メールで通知」を選択肢に出さない）
+- 設計を最後まで進め、stage を ready にしてください。
+- **機能要件がまだ無い場合は、ここまでの業務情報から機能要件そのものを起こしてください。**
+  利用者の目的・対象者・困りごとから、P0/P1/P2と受入条件つきで具体的に書きます。
+  「情報が足りないので書けません」で止めないでください。
+"""
+
+
+async def finalize_design(
+    model: str,
+    requirements: Requirements,
+    history: list[dict[str, str]],
+    missing_labels: list[str],
+    attachments_context: str = "",
+    user_done: bool = False,
+) -> ChatTurnOutput:
+    """未達の設計項目をAIに埋めさせる。利用者へは質問しない。
+
+    利用者はシステム設計の専門家ではないので、スコープやリスクを尋ねても
+    答えられずに止まる(necco647700のミャンマープロジェクトが80%で停止した)。
+    機能要件が揃った時点で、残りは設計側の判断としてAIが埋める。
+    """
+    instruction = FINALIZE_INSTRUCTION.format(missing="、".join(missing_labels) or "なし")
+    if user_done:
+        instruction += USER_DONE_SUFFIX
+    return await chat_turn(model, requirements, history, instruction, attachments_context)
