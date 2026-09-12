@@ -9,3 +9,8 @@ node_modules/
 .env
 public/karchitect_config.php
 public/karchitect_data/credits.json
+# DBとそのバックアップ。data/*.db では .db.bak-YYYYMMDD を拾えなかった（2026-09-12）
+data/*.db*
+data/*.sqlite*
+*.bak
+*.bak-*
