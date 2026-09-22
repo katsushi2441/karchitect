@@ -502,6 +502,7 @@ footer a{color:var(--indigo)}
   </section>
 </main>
 <footer>Kurage Architect — <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> ・ <a href="https://github.com/katsushi2441/karchitect" target="_blank" rel="noopener">オープンソース(GitHub)</a> ・ <a href="https://kurage.exbridge.jp/vibe-prototype.html">設計書からプロトタイプを作る（バイブプロトタイプ制作）</a> ・ <a href="https://kurage.exbridge.jp/tokusho.php">特定商取引法に基づく表記</a><br>設計内容はローカルLLMで処理され、外部AI事業者へは送信されません。<br>生成した設計書は<b>オープンソースと同じ扱い</b>です（改変・再配布・商用利用可。当社も自由に利用・公開します）。<b>公開されては困る情報は入力しないでください。</b>秘密保持が必要な場合は<a href="https://kurage.exbridge.jp/terms.html#nda">秘密保持オプション（有償）</a>で承ります。詳細は<a href="https://kurage.exbridge.jp/terms.html">利用規約</a>をご覧ください。</footer>
+<p style="text-align:center;font-size:13px;margin:14px 0;color:#5d6b7a"><a href="https://kappstore.exbridge.jp/app.php?id=cfb7c4a69621600f&amp;ref=karchitect" target="_blank" rel="noopener">この製品をオンプレミスで導入する（商品ページ）</a></p>
 </body></html>
 <?php
     exit;
